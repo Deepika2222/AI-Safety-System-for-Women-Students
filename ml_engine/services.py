@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.db import models as django_models
 
 from .models import (
     MLModel, Prediction, TrainingDataset,
@@ -241,7 +242,7 @@ class ModelEvaluationService:
         accuracy = correct_predictions / num_predictions if num_predictions > 0 else 0.0
         
         avg_confidence = predictions.aggregate(
-            avg=models.Avg('confidence_score')
+            avg=django_models.Avg('confidence_score')
         )['avg'] or 0.0
         
         # Create performance record
