@@ -1,6 +1,7 @@
 """
 URL configuration for ai_safety_system project.
 """
+
 from django.contrib import admin
 from django.urls import path, include
 
