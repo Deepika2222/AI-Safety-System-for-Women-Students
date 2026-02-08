@@ -16,6 +16,9 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
 
+if DEBUG and '10.0.2.2' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('10.0.2.2')
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -108,6 +111,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+default_permission_classes = [
+    'rest_framework.permissions.AllowAny' if DEBUG else 'rest_framework.permissions.IsAuthenticated',
+]
+
 # REST Framework configuration
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
@@ -121,9 +128,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
     ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
+    'DEFAULT_PERMISSION_CLASSES': default_permission_classes,
 }
 
 # CORS settings
