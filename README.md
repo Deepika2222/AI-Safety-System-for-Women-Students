@@ -219,6 +219,37 @@ Content-Type: application/json
 - **Geospatial**: geopy, networkx
 - **Testing**: pytest, pytest-django
 
+## Mobile App (React Native)
+
+The React Native app includes live location tracking and shows a moving marker on the safety map.
+
+### Frontend Setup
+
+```bash
+cd frontend
+npm install
+```
+
+### Run on Android
+
+```bash
+npx react-native run-android
+```
+
+### Run on iOS
+
+```bash
+cd ios
+pod install
+cd ..
+npx react-native run-ios
+```
+
+### Location Permissions
+
+- Android: the app requests fine, coarse, and background location permissions at runtime.
+- iOS: the app requests always-on location access; ensure the permission prompt is accepted.
+
 ## Features
 
 ### Route Prediction
@@ -234,6 +265,9 @@ Content-Type: application/json
 - Audio distress signal verification
 - Automatic emergency alerts to contacts
 - False positive handling and feedback
+
+### Mobile App
+- Live location tracking with a moving map marker
 
 ### ML Engine
 - Model versioning and deployment management
