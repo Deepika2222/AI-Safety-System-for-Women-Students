@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, PermissionsAndroid, Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import Geolocation, { GeoPosition } from 'react-native-geolocation-service';
 import { detectEmergency } from '../api/safety';
 import { fetchRiskScores } from '../api/routing';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -17,7 +18,10 @@ const initialRegion = {
 export function MapScreen() {
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState('Ready');
+  const [locationStatus, setLocationStatus] = useState('Locating...');
   const [riskSummary, setRiskSummary] = useState<string | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const webViewRef = useRef<WebView>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -42,16 +46,65 @@ export function MapScreen() {
     };
   }, []);
 
-  const emergencyPayload = useMemo(
-    () => ({
+  useEffect(() => {
+    let watchId: number | null = null;
+    let isActive = true;
+
+    const updateLocation = (position: GeoPosition) => {
+      if (!isActive) return;
+      const { latitude, longitude } = position.coords;
+      setCurrentLocation({ latitude, longitude });
+      setLocationStatus(`Live: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+      webViewRef.current?.postMessage(
+        JSON.stringify({ type: 'location', latitude, longitude })
+      );
+    };
+
+    const startWatching = async () => {
+      const hasPermission = await requestLocationPermission();
+      if (!hasPermission) {
+        setLocationStatus('Location permission denied.');
+        return;
+      }
+
+      watchId = Geolocation.watchPosition(
+        updateLocation,
+        (error) => {
+          if (!isActive) return;
+          setLocationStatus(`Location error: ${error.message}`);
+        },
+        {
+          enableHighAccuracy: true,
+          distanceFilter: 5,
+          interval: 2000,
+          fastestInterval: 1000,
+          showsBackgroundLocationIndicator: true,
+        }
+      );
+    };
+
+    startWatching();
+
+    return () => {
+      isActive = false;
+      if (watchId !== null) {
+        Geolocation.clearWatch(watchId);
+      }
+    };
+  }, []);
+
+  const emergencyPayload = useMemo(() => {
+    const latitude = currentLocation?.latitude ?? initialRegion.latitude;
+    const longitude = currentLocation?.longitude ?? initialRegion.longitude;
+
+    return {
       timestamp: new Date().toISOString(),
-      latitude: initialRegion.latitude,
-      longitude: initialRegion.longitude,
+      latitude,
+      longitude,
       accelerometer_data: { magnitude: 2.2 },
       audio_data: { scream_probability: 0.4 },
-    }),
-    []
-  );
+    };
+  }, [currentLocation]);
 
   const handleEmergency = async () => {
     try {
@@ -96,7 +149,32 @@ export function MapScreen() {
             maxZoom: 19,
             attribution: '&copy; OpenStreetMap contributors'
           }).addTo(map);
-          L.marker([${initialRegion.latitude}, ${initialRegion.longitude}]).addTo(map);
+          const liveMarker = L.marker([${initialRegion.latitude}, ${initialRegion.longitude}]).addTo(map);
+          let hasCentered = false;
+
+          const updateLocation = (lat, lng) => {
+            liveMarker.setLatLng([lat, lng]);
+            if (!hasCentered) {
+              map.setView([lat, lng], 15);
+              hasCentered = true;
+            } else {
+              map.panTo([lat, lng]);
+            }
+          };
+
+          const handleMessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data?.type === 'location') {
+                updateLocation(data.latitude, data.longitude);
+              }
+            } catch (err) {
+              // Ignore malformed payloads
+            }
+          };
+
+          document.addEventListener('message', handleMessage);
+          window.addEventListener('message', handleMessage);
         </script>
       </body>
     </html>`;
@@ -104,11 +182,27 @@ export function MapScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.mapWrapper}>
-        <WebView originWhitelist={['*']} source={{ html: mapHtml }} style={styles.map} />
+        <WebView
+          ref={webViewRef}
+          originWhitelist={['*']}
+          source={{ html: mapHtml }}
+          style={styles.map}
+          onLoadEnd={() => {
+            if (!currentLocation) return;
+            webViewRef.current?.postMessage(
+              JSON.stringify({
+                type: 'location',
+                latitude: currentLocation.latitude,
+                longitude: currentLocation.longitude,
+              })
+            );
+          }}
+        />
       </View>
 
       <View style={styles.panel}>
         <SectionCard title="Map Status" subtitle={status}>
+          <Text style={styles.bodyText}>{locationStatus}</Text>
           <Text style={styles.bodyText}>Tap SOS if you feel unsafe. The app sends a detection request.</Text>
           <View style={styles.riskRow}>
             {riskSummary ? (
@@ -131,6 +225,25 @@ export function MapScreen() {
         </Text>
       </View>
     </View>
+  );
+}
+
+async function requestLocationPermission() {
+  if (Platform.OS === 'ios') {
+    const authStatus = await Geolocation.requestAuthorization('always');
+    return authStatus === 'granted';
+  }
+
+  const permissions = [
+    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+    PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+    PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
+  ];
+
+  const result = await PermissionsAndroid.requestMultiple(permissions);
+  return (
+    result[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED ||
+    result[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED
   );
 }
 
