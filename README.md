@@ -100,9 +100,7 @@ ai_safety_system/
 
 ### Prerequisites
 - Python 3.9+
-- Node.js 20+
-- Java 17 (for Android builds)
-- Android Studio + Android SDK (for Android emulator/device)
+- PostgreSQL 12+
 - Virtual environment tool (venv or virtualenv)
 
 ### Installation
@@ -130,8 +128,12 @@ cp .env.example .env
 # Edit .env with your configuration
 ```
 
-5. **Set up database (SQLite by default)**
+5. **Set up database**
 ```bash
+# Create PostgreSQL database
+createdb ai_safety_db
+
+# Run migrations
 python manage.py makemigrations
 python manage.py migrate
 ```
@@ -147,38 +149,6 @@ python manage.py runserver
 ```
 
 The API will be available at `http://localhost:8000/`
-
-## Mobile App (React Native)
-
-The React Native app lives in the `frontend` folder and calls the Django API with sample payloads.
-
-### Android (Windows)
-
-1. **Install JS deps**
-```bash
-cd frontend
-npm install
-```
-
-2. **Start Metro**
-```bash
-cd frontend
-npx react-native start
-```
-
-3. **Run on Android emulator/device**
-```bash
-cd frontend
-npx react-native run-android
-```
-
-### API base URL
-
-The mobile app uses:
-- Android emulator: `http://10.0.2.2:8000/api`
-- iOS simulator: `http://localhost:8000/api`
-
-You can update this in `frontend/src/api/client.ts`. If you use a physical device, point to your machine's LAN IP (for example, `http://192.168.1.50:8000/api`) and add that IP to `ALLOWED_HOSTS`.
 
 ## API Documentation
 
