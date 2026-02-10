@@ -234,17 +234,24 @@ async function requestLocationPermission() {
     return authStatus === 'granted';
   }
 
-  const permissions = [
+  const foregroundResult = await PermissionsAndroid.requestMultiple([
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
     PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-    PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
-  ];
+  ]);
 
-  const result = await PermissionsAndroid.requestMultiple(permissions);
-  return (
-    result[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED ||
-    result[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED
-  );
+  const hasForeground =
+    foregroundResult[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED ||
+    foregroundResult[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
+
+  if (!hasForeground) {
+    return false;
+  }
+
+  if (Platform.Version >= 29) {
+    await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION);
+  }
+
+  return true;
 }
 
 const styles = StyleSheet.create({
