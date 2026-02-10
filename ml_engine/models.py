@@ -200,3 +200,69 @@ class FeatureImportance(models.Model):
 
     def __str__(self):
         return f"{self.feature_name}: {self.importance_score}"
+
+class User(models.Model):
+    username = models.CharField(max_length=255)
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class EmergencyContact(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+
+class Location(models.Model):
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    name = models.CharField(max_length=255, blank=True, null=True)
+    risk_score = models.FloatField(default=0.0)
+
+class Route(models.Model):
+    ROUTE_TYPES = (('safest', 'Safest'), ('fastest', 'Fastest'))
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    origin = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='route_origin')
+    destination = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='route_destination')
+    route_type = models.CharField(max_length=10, choices=ROUTE_TYPES)
+    total_distance = models.FloatField()
+    safety_score = models.FloatField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class RouteSegment(models.Model):
+    route = models.ForeignKey(Route, on_delete=models.CASCADE)
+    start_location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='segment_start')
+    end_location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='segment_end')
+    risk_weight = models.FloatField()
+    distance = models.FloatField()
+
+class SensorEvent(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    accel_x = models.FloatField()
+    accel_y = models.FloatField()
+    accel_z = models.FloatField()
+    gyro_x = models.FloatField()
+    gyro_y = models.FloatField()
+    gyro_z = models.FloatField()
+    anomaly_score = models.FloatField()
+    timestamp = models.DateTimeField()
+
+class AudioEvent(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    distress_probability = models.FloatField()
+    timestamp = models.DateTimeField()
+
+class EmergencyAlert(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    location = models.ForeignKey(Location, on_delete=models.CASCADE)
+    final_risk_score = models.FloatField()
+    alert_triggered = models.BooleanField(default=False)
+    timestamp = models.DateTimeField()
+
+class MLModel(models.Model):
+    model_name = models.CharField(max_length=255)
+    version = models.CharField(max_length=50)
+    accuracy = models.FloatField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    file_path = models.TextField()
+
