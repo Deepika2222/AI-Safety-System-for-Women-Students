@@ -1,30 +1,30 @@
 # Core Django and REST Framework
-Django>=4.2,<5.0
-djangorestframework>=3.14.0
-django-cors-headers>=4.0.0
+Django
+djangorestframework
+django-cors-headers
 
 # Database
-psycopg2-binary>=2.9.0
+psycopg2-binary
 
 # ML and Data Processing
-numpy>=1.24.0
-scikit-learn>=1.3.0
-pandas>=2.0.0
-scipy>=1.11.0
+numpy
+scikit-learn
+pandas
+scipy
 
 # Geospatial and routing
-geopy>=2.3.0
-networkx>=3.1
+geopy
+networkx
 
 # Audio processing (for audio verification)
-librosa>=0.10.0
+librosa
 
 # Environment and configuration
-python-decouple>=3.8
+python-decouple
 
 # Testing
-pytest>=7.4.0
-pytest-django>=4.5.0
+pytest
+pytest-django
 
 # Code quality
-flake8>=6.0.0
+flake8
