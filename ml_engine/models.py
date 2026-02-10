@@ -1,5 +1,5 @@
 """
-Models for ml_engine app - handles ML models and predictions
+Models for ml_engine app - handles ML models and predictions and related domain models
 """
 from django.db import models
 from django.contrib.auth.models import User
@@ -19,7 +19,7 @@ class MLModel(models.Model):
     )
     version = models.CharField(max_length=50)
     description = models.TextField(blank=True)
-    
+
     # Model metadata
     model_file_path = models.CharField(max_length=500, help_text="Path to model file")
     input_features = models.JSONField(help_text="List of input feature names")
@@ -28,17 +28,17 @@ class MLModel(models.Model):
         blank=True,
         help_text="Output classes for classification models"
     )
-    
+
     # Performance metrics
     accuracy = models.FloatField(null=True, blank=True)
     precision = models.FloatField(null=True, blank=True)
     recall = models.FloatField(null=True, blank=True)
     f1_score = models.FloatField(null=True, blank=True)
-    
+
     # Status
     is_active = models.BooleanField(default=True)
     is_production = models.BooleanField(default=False)
-    
+
     # Timestamps
     trained_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -65,7 +65,7 @@ class Prediction(models.Model):
         null=True,
         blank=True
     )
-    
+
     # Input and output
     input_data = models.JSONField(help_text="Input features used for prediction")
     prediction_result = models.JSONField(help_text="Model output/prediction")
@@ -74,11 +74,11 @@ class Prediction(models.Model):
         blank=True,
         help_text="Confidence level of prediction"
     )
-    
+
     # Context
     prediction_type = models.CharField(max_length=100)
     context_data = models.JSONField(default=dict, blank=True)
-    
+
     # Feedback
     actual_outcome = models.JSONField(
         null=True,
@@ -86,7 +86,7 @@ class Prediction(models.Model):
         help_text="Actual outcome for model evaluation"
     )
     is_correct = models.BooleanField(null=True, blank=True)
-    
+
     # Timestamps
     predicted_at = models.DateTimeField(auto_now_add=True)
 
@@ -114,13 +114,13 @@ class TrainingDataset(models.Model):
             ('route_data', 'Route Data'),
         ]
     )
-    
+
     # Dataset metadata
     file_path = models.CharField(max_length=500)
     num_samples = models.IntegerField()
     num_features = models.IntegerField()
     feature_names = models.JSONField()
-    
+
     # Quality metrics
     completeness_score = models.FloatField(
         null=True,
@@ -132,11 +132,11 @@ class TrainingDataset(models.Model):
         blank=True,
         help_text="Class balance score"
     )
-    
+
     # Status
     is_validated = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
-    
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -151,27 +151,27 @@ class TrainingDataset(models.Model):
 class ModelPerformance(models.Model):
     """Tracks model performance over time"""
     model = models.ForeignKey(MLModel, on_delete=models.CASCADE, related_name='performance_metrics')
-    
+
     # Time period
     evaluation_date = models.DateField()
     period_start = models.DateTimeField()
     period_end = models.DateTimeField()
-    
+
     # Metrics
     num_predictions = models.IntegerField()
     accuracy = models.FloatField()
     precision = models.FloatField(null=True, blank=True)
     recall = models.FloatField(null=True, blank=True)
     f1_score = models.FloatField(null=True, blank=True)
-    
+
     # Additional metrics
     avg_confidence = models.FloatField(null=True, blank=True)
     false_positive_rate = models.FloatField(null=True, blank=True)
     false_negative_rate = models.FloatField(null=True, blank=True)
-    
+
     # Context
     notes = models.TextField(blank=True)
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -191,7 +191,7 @@ class FeatureImportance(models.Model):
     feature_name = models.CharField(max_length=255)
     importance_score = models.FloatField()
     rank = models.IntegerField()
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -201,23 +201,24 @@ class FeatureImportance(models.Model):
     def __str__(self):
         return f"{self.feature_name}: {self.importance_score}"
 
-class User(models.Model):
-    username = models.CharField(max_length=255)
-    email = models.EmailField(unique=True)
-    password = models.CharField(max_length=255)
-    created_at = models.DateTimeField(auto_now_add=True)
+
+# Domain models that relate to users, alerts and routing.
+# We intentionally do NOT define a custom User model here; use Django's auth User.
+
 
 class EmergencyContact(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='emergency_contacts')
     name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
+
 
 class Location(models.Model):
     latitude = models.FloatField()
     longitude = models.FloatField()
     name = models.CharField(max_length=255, blank=True, null=True)
     risk_score = models.FloatField(default=0.0)
+
 
 class Route(models.Model):
     ROUTE_TYPES = (('safest', 'Safest'), ('fastest', 'Fastest'))
@@ -229,12 +230,14 @@ class Route(models.Model):
     safety_score = models.FloatField()
     created_at = models.DateTimeField(auto_now_add=True)
 
+
 class RouteSegment(models.Model):
     route = models.ForeignKey(Route, on_delete=models.CASCADE)
     start_location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='segment_start')
     end_location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='segment_end')
     risk_weight = models.FloatField()
     distance = models.FloatField()
+
 
 class SensorEvent(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -247,10 +250,12 @@ class SensorEvent(models.Model):
     anomaly_score = models.FloatField()
     timestamp = models.DateTimeField()
 
+
 class AudioEvent(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     distress_probability = models.FloatField()
     timestamp = models.DateTimeField()
+
 
 class EmergencyAlert(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -258,11 +263,3 @@ class EmergencyAlert(models.Model):
     final_risk_score = models.FloatField()
     alert_triggered = models.BooleanField(default=False)
     timestamp = models.DateTimeField()
-
-class MLModel(models.Model):
-    model_name = models.CharField(max_length=255)
-    version = models.CharField(max_length=50)
-    accuracy = models.FloatField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    file_path = models.TextField()
-
