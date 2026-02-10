@@ -99,8 +99,9 @@ tables = [
 ]
 
 for table in tables:
-    cursor.execute(table)
+    cursor.execute(table) 
 
 conn.commit()
 conn.close()
 print("Tables created successfully!") 
+
