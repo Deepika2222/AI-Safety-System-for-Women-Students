@@ -1,16 +1,17 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors, spacing, typography } from '../theme';
+import { StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { colors, spacing, typography } from '../theme-soft';
 
 type SectionCardProps = {
   title: string;
   children: React.ReactNode;
   subtitle?: string;
+  style?: ViewStyle;
 };
 
-export function SectionCard({ title, subtitle, children }: SectionCardProps) {
+export function SectionCard({ title, subtitle, children, style }: SectionCardProps) {
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, style]}>
       <Text style={styles.label}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       <View style={styles.content}>{children}</View>
@@ -20,27 +21,30 @@ export function SectionCard({ title, subtitle, children }: SectionCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.panel,
-    borderRadius: 18,
-    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: '#000000',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 6 },
+    shadowColor: colors.primary, // Subtle tint
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 4 },
     shadowRadius: 12,
-    elevation: 2,
+    elevation: 3,
+    marginBottom: spacing.md,
   },
   label: {
-    color: colors.muted,
-    ...typography.label,
+    ...typography.title,
+    fontSize: 18,
+    marginBottom: 4,
   },
   subtitle: {
-    marginTop: spacing.xs,
-    color: colors.text,
-    ...typography.subtitle,
+    ...typography.caption,
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   content: {
     marginTop: spacing.sm,
+    gap: spacing.sm,
   },
 });

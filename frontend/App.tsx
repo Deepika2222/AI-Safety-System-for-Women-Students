@@ -3,7 +3,7 @@ import { SafeAreaView, StatusBar, StyleSheet, Text, Pressable, View } from 'reac
 import { MapScreen } from './src/screens/MapScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
-import { colors, spacing, typography } from './src/theme';
+import { colors, spacing, typography, shadows } from './src/theme-soft';
 
 type TabKey = 'map' | 'profile' | 'settings';
 
@@ -22,10 +22,10 @@ function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <View style={styles.content}>{screen}</View>
       <View style={styles.tabBar}>
-        <TabButton label="Map" active={tab === 'map'} onPress={() => setTab('map')} />
+        <TabButton label="Home" active={tab === 'map'} onPress={() => setTab('map')} />
         <TabButton label="Profile" active={tab === 'profile'} onPress={() => setTab('profile')} />
         <TabButton label="Settings" active={tab === 'settings'} onPress={() => setTab('settings')} />
       </View>
@@ -44,7 +44,11 @@ function TabButton({ label, active, onPress }: TabButtonProps) {
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [styles.tabButton, pressed && styles.tabButtonPressed]}
+      style={({ pressed }) => [
+        styles.tabButton,
+        active && styles.tabButtonActive,
+        pressed && styles.tabButtonPressed
+      ]}
     >
       <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
     </Pressable>
@@ -62,25 +66,33 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingVertical: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.panel,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    ...shadows.floating,
   },
   tabButton: {
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xs,
-    borderRadius: 16,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  tabButtonActive: {
+    backgroundColor: '#F0FDF4', // Very light green
   },
   tabButtonPressed: {
-    backgroundColor: '#f0e7dd',
+    opacity: 0.7,
   },
   tabLabel: {
-    color: colors.muted,
-    ...typography.subtitle,
+    color: '#BDBDBD',
+    ...typography.caption,
+    fontWeight: '600',
   },
   tabLabelActive: {
-    color: colors.accent,
+    color: colors.primary,
   },
 });
 

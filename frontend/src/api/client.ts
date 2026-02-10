@@ -31,20 +31,30 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     headers.Authorization = `Bearer ${API_TOKEN}`;
   }
 
-  const response = await fetch(url, {
-    method: options.method ?? 'GET',
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
-  const payload = await parseJson(response);
+  try {
+    const response = await fetch(url, {
+      method: options.method ?? 'GET',
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
 
-  if (!response.ok) {
-    const message = typeof payload === 'string'
-      ? payload
-      : payload?.error || payload?.detail || 'Request failed';
-    throw new Error(message);
+    const payload = await parseJson(response);
+
+    if (!response.ok) {
+      const message = typeof payload === 'string'
+        ? payload
+        : payload?.error || payload?.detail || 'Request failed';
+      throw new Error(message);
+    }
+
+    return payload as T;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
   }
-
-  return payload as T;
 }

@@ -178,3 +178,50 @@ class EmergencyContact(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.phone_number}"
+from django.db import models
+from django.contrib.auth.models import User
+
+class SensorEvent(models.Model):
+    """
+    Stores motion sensor events (Stage 1)
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sensor_events')
+    timestamp = models.DateTimeField(auto_now_add=True)
+    accelerometer_data = models.JSONField(help_text="Accelerometer x, y, z")
+    gyroscope_data = models.JSONField(help_text="Gyroscope x, y, z")
+    anomaly_score = models.FloatField()
+    anomaly_detected = models.BooleanField()
+    
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"SensorEvent {self.id} - Anomaly: {self.anomaly_detected}"
+
+class AudioEvent(models.Model):
+    """
+    Stores audio analysis events (Stage 2)
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='audio_events')
+    timestamp = models.DateTimeField(auto_now_add=True)
+    audio_mfcc = models.JSONField(help_text="MFCC features")
+    location = models.JSONField(null=True, blank=True, help_text="Lat, Lon")
+    distress_probability = models.FloatField()
+    emergency_triggered = models.BooleanField()
+    
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"AudioEvent {self.id} - Triggered: {self.emergency_triggered}"
+
+class EmergencyAlert(models.Model):
+    """
+    Stores emergency alerts triggered by AudioEvent
+    """
+    audio_event = models.ForeignKey(AudioEvent, on_delete=models.CASCADE, related_name='emergency_alerts')
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_sent = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return f"EmergencyAlert {self.id} for {self.audio_event.user.username}"

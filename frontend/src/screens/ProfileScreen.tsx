@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { fetchEmergencyContacts } from '../api/safety';
 import { SectionCard } from '../components/SectionCard';
-import { colors, spacing, typography } from '../theme';
+import { colors, spacing, typography } from '../theme-soft';
 
 type Contact = {
   id: number;
@@ -14,7 +14,7 @@ type Contact = {
 
 export function ProfileScreen() {
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [status, setStatus] = useState('Loading contacts...');
+  const [status, setStatus] = useState('Syncing...');
 
   useEffect(() => {
     let isMounted = true;
@@ -22,36 +22,33 @@ export function ProfileScreen() {
       .then((data) => {
         if (isMounted) {
           setContacts(data);
-          setStatus(data.length ? 'Active contacts loaded.' : 'No contacts found.');
+          setStatus(data.length ? 'Synced' : 'No contacts');
         }
       })
       .catch((error) => {
         if (isMounted) {
-          setStatus(`API not connected: ${error.message}`);
+          setStatus(`Offline`);
         }
       });
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Profile</Text>
+      <Text style={styles.header}>My Profile</Text>
 
-      <SectionCard title="Personal Info" subtitle="Update your safety profile">
+      <SectionCard title="Personal Details">
         <View style={styles.field}>
-          <Text style={styles.label}>Name</Text>
-          <TextInput placeholder="Student name" style={styles.input} placeholderTextColor={colors.muted} />
+          <Text style={styles.label}>Full Name</Text>
+          <TextInput placeholder="Enter your name" style={styles.input} placeholderTextColor="#BDBDBD" />
         </View>
         <View style={styles.field}>
-          <Text style={styles.label}>Phone</Text>
-          <TextInput placeholder="+91 98765 43210" style={styles.input} placeholderTextColor={colors.muted} />
+          <Text style={styles.label}>Phone Number</Text>
+          <TextInput placeholder="+91 98765 43210" style={styles.input} placeholderTextColor="#BDBDBD" />
         </View>
         <View style={styles.field}>
-          <Text style={styles.label}>Campus</Text>
-          <TextInput placeholder="Main campus" style={styles.input} placeholderTextColor={colors.muted} />
+          <Text style={styles.label}>University / Campus</Text>
+          <TextInput placeholder="Main Campus" style={styles.input} placeholderTextColor="#BDBDBD" />
         </View>
       </SectionCard>
 
@@ -59,14 +56,19 @@ export function ProfileScreen() {
         {contacts.length ? (
           contacts.map((contact) => (
             <View key={contact.id} style={styles.contactRow}>
-              <Text style={styles.contactName}>{contact.name}</Text>
-              <Text style={styles.contactMeta}>
-                {contact.relationship || 'Contact'} • {contact.phone_number}
-              </Text>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{contact.name[0]}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.contactName}>{contact.name}</Text>
+                <Text style={styles.contactMeta}>
+                  {contact.relationship} • {contact.phone_number}
+                </Text>
+              </View>
             </View>
           ))
         ) : (
-          <Text style={styles.bodyText}>Add contacts once authentication is enabled.</Text>
+          <Text style={styles.bodyText}>Add trusted contacts to keep them informed.</Text>
         )}
       </SectionCard>
     </ScrollView>
@@ -76,45 +78,63 @@ export function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     padding: spacing.lg,
-    gap: spacing.md,
+    paddingTop: 60,
+    gap: spacing.lg,
     backgroundColor: colors.background,
+    paddingBottom: 100,
   },
-  title: {
-    color: colors.text,
-    ...typography.title,
+  header: {
+    ...typography.header,
+    marginBottom: spacing.xs,
   },
   field: {
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   label: {
-    color: colors.muted,
-    ...typography.label,
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: 6,
   },
   input: {
-    marginTop: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: '#F5F5F5',
     borderRadius: 12,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.md,
     color: colors.text,
-    backgroundColor: '#fff',
+    fontSize: 16,
   },
   contactRow: {
-    paddingVertical: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFEAA7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  avatarText: {
+    color: '#FDCB6E',
+    fontWeight: '700',
+    fontSize: 18,
+  },
   contactName: {
-    color: colors.text,
-    ...typography.subtitle,
+    ...typography.title,
+    fontSize: 16,
   },
   contactMeta: {
-    color: colors.muted,
-    ...typography.body,
+    ...typography.caption,
+    marginTop: 2,
   },
   bodyText: {
-    color: colors.muted,
     ...typography.body,
+    fontStyle: 'italic',
+    color: '#BDBDBD',
   },
 });
