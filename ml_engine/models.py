@@ -207,7 +207,7 @@ class FeatureImportance(models.Model):
 
 
 class EmergencyContact(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='emergency_contacts')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ml_emergency_contacts')
     name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
