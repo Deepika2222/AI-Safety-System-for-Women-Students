@@ -117,3 +117,30 @@ class EmergencyDetectionResponseSerializer(serializers.Serializer):
     confidence_level = serializers.FloatField()
     alerts_sent = serializers.IntegerField()
     message = serializers.CharField()
+from .models import SensorEvent, AudioEvent, EmergencyAlert
+
+class MotionCheckRequestSerializer(serializers.Serializer):
+    accelerometer = serializers.DictField(child=serializers.FloatField())
+    gyroscope = serializers.DictField(child=serializers.FloatField())
+
+class MotionCheckResponseSerializer(serializers.Serializer):
+    anomaly_score = serializers.FloatField()
+    anomaly_detected = serializers.BooleanField()
+
+class AudioAnalyzeRequestSerializer(serializers.Serializer):
+    audio_mfcc = serializers.ListField(child=serializers.FloatField())
+    location = serializers.DictField(child=serializers.FloatField())
+
+class AudioAnalyzeResponseSerializer(serializers.Serializer):
+    distress_probability = serializers.FloatField()
+    emergency_triggered = serializers.BooleanField()
+
+class SensorEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SensorEvent
+        fields = '__all__'
+
+class AudioEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AudioEvent
+        fields = '__all__'

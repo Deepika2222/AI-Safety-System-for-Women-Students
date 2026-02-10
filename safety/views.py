@@ -162,3 +162,47 @@ class AlertViewSet(viewsets.ReadOnlyModelViewSet):
         return self.queryset.filter(
             emergency_detection__user=self.request.user
         )
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from .serializers import (
+    MotionCheckRequestSerializer, MotionCheckResponseSerializer,
+    AudioAnalyzeRequestSerializer, AudioAnalyzeResponseSerializer
+)
+from .services import MotionDetectionService, AudioAnalysisService
+
+class CheckMotionView(APIView):
+    """
+    API endpoint for Stage 1: Motion anomaly detection.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = MotionCheckRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                result = MotionDetectionService.process_motion_data(request.user, serializer.validated_data)
+                response_serializer = MotionCheckResponseSerializer(result)
+                return Response(response_serializer.data, status=status.HTTP_200_OK)
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class AnalyzeAudioView(APIView):
+    """
+    API endpoint for Stage 2: Audio distress detection.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = AudioAnalyzeRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                result = AudioAnalysisService.process_audio_data(request.user, serializer.validated_data)
+                response_serializer = AudioAnalyzeResponseSerializer(result)
+                return Response(response_serializer.data, status=status.HTTP_200_OK)
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -1,0 +1,23 @@
+Verifying endpoints...
+Test user: admin (ID: 1)
+
+Test 1: Check Motion (High Anomaly)
+Status: 200
+Response: {'anomaly_score': 1.0, 'anomaly_detected': True}
+PASS: High anomaly detected.
+
+Test 2: Check Motion (Low Anomaly)
+Status: 200
+Response: {'anomaly_score': 0.1715, 'anomaly_detected': False}
+PASS: Low anomaly strictly ignored.
+
+Test 3: Analyze Audio (Distress)
+Status: 200
+Response: {'distress_probability': 0.8, 'emergency_triggered': True}
+PASS: Distress detected.
+PASS: Database records created (AudioEvent + EmergencyAlert).
+
+Test 4: Analyze Audio (Normal)
+Status: 200
+Response: {'distress_probability': 0.1, 'emergency_triggered': False}
+PASS: Normal audio ignored.

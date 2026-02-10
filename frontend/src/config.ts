@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-const ANDROID_EMULATOR_HOST = '10.0.2.2';
+const ANDROID_EMULATOR_HOST = '127.0.0.1'; // Use with adb reverse tcp:8000 tcp:8000
 const IOS_SIMULATOR_HOST = '127.0.0.1';
 
 const apiHost = Platform.select({

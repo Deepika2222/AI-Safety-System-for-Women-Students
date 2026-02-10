@@ -5,7 +5,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     SensorDataViewSet, EmergencyDetectionViewSet,
-    EmergencyContactViewSet, AlertViewSet
+    EmergencyContactViewSet, AlertViewSet,
+    CheckMotionView, AnalyzeAudioView
 )
 
 router = DefaultRouter()
@@ -15,5 +16,7 @@ router.register(r'emergency-contacts', EmergencyContactViewSet, basename='emerge
 router.register(r'alerts', AlertViewSet, basename='alert')
 
 urlpatterns = [
+    path('check_motion/', CheckMotionView.as_view(), name='check-motion'),
+    path('analyze_audio/', AnalyzeAudioView.as_view(), name='analyze-audio'),
     path('', include(router.urls)),
 ]

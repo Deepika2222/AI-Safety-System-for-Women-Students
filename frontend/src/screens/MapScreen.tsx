@@ -1,27 +1,140 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, PermissionsAndroid, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, PermissionsAndroid, Platform, StyleSheet, Text, View, StatusBar, Animated, TouchableOpacity } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Geolocation, { GeoPosition } from 'react-native-geolocation-service';
-import { detectEmergency } from '../api/safety';
+import { accelerometer, setUpdateIntervalForType, SensorTypes } from 'react-native-sensors';
+import AudioRecord from 'react-native-audio-record';
+import { SafetyService } from '../api/SafetyService';
+import { AudioUtils } from '../utils/AudioUtils';
 import { fetchRiskScores } from '../api/routing';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SectionCard } from '../components/SectionCard';
-import { colors, spacing, typography } from '../theme';
+import { colors, spacing, typography, shadows } from '../theme-soft';
 
 const initialRegion = {
   latitude: 12.9716,
   longitude: 77.5946,
-  latitudeDelta: 0.05,
-  longitudeDelta: 0.05,
 };
 
 export function MapScreen() {
   const [sending, setSending] = useState(false);
-  const [status, setStatus] = useState('Ready');
-  const [locationStatus, setLocationStatus] = useState('Locating...');
+  const [status, setStatus] = useState('You are safe');
+  const [locationStatus, setLocationStatus] = useState('Updating location...');
   const [riskSummary, setRiskSummary] = useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const webViewRef = useRef<WebView>(null);
+
+  // Initialize Audio
+  useEffect(() => {
+    const initAudio = async () => {
+      const options = {
+        sampleRate: 16000,
+        channels: 1,
+        bitsPerSample: 16,
+        audioSource: 6,
+        wavFile: 'test.wav'
+      };
+      AudioRecord.init(options);
+    };
+    initAudio();
+  }, []);
+
+  // Motion Monitoring Logic
+  useEffect(() => {
+    let subscription: any;
+    setUpdateIntervalForType(SensorTypes.accelerometer, 200);
+
+    const monitorMotion = async () => {
+      console.log("Starting accelerometer monitoring...");
+      try {
+        subscription = accelerometer.subscribe(({ x, y, z }) => {
+          const magnitude = Math.sqrt(x * x + y * y + z * z);
+          // Lower threshold to 1.5g (approx 14.7 m/s^2) for easier testing
+          // Earth gravity is ~9.8, so 15 is a firm shake.
+          if (magnitude > 15 && !sending) {
+            console.log(`Motion detected! Magnitude: ${magnitude.toFixed(2)}`);
+            handleMotionCheck({ x, y, z });
+          }
+        });
+      } catch (error) {
+        console.error("Accelerometer subscription failed:", error);
+      }
+    };
+
+    monitorMotion();
+    return () => {
+      if (subscription) {
+        console.log("Stopping accelerometer monitoring...");
+        subscription.unsubscribe();
+      }
+    };
+  }, [sending]);
+
+  const handleMotionCheck = async (accel: { x: number, y: number, z: number }) => {
+    if (sending) return;
+    setSending(true);
+    setStatus('Checking potential fall...');
+
+    try {
+      const response = await SafetyService.checkMotion({
+        accelerometer: accel,
+        gyroscope: { x: 0, y: 0, z: 0 }
+      });
+
+      if (response.anomaly_detected) {
+        setStatus('Analyzing audio environment...');
+        await startAudioAnalysis();
+      } else {
+        setStatus('Movement cleared');
+        setTimeout(() => setStatus('You are safe'), 2000);
+      }
+    } catch (err) {
+      console.log("Motion check failed", err);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const startAudioAnalysis = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) return;
+      }
+
+      const options = {
+        sampleRate: 16000,
+        channels: 1,
+        bitsPerSample: 16,
+        audioSource: 6,
+        wavFile: 'test.wav'
+      };
+      AudioRecord.init(options);
+      AudioRecord.start();
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const audioFile = await AudioRecord.stop();
+      const mfcc = await AudioUtils.extractMFCC(audioFile);
+
+      const location = currentLocation || { latitude: 0, longitude: 0 };
+      const response = await SafetyService.analyzeAudio({
+        audio_mfcc: mfcc,
+        location: { lat: location.latitude, lon: location.longitude }
+      });
+
+      if (response.emergency_triggered) {
+        Alert.alert("Emergency Triggered", "Help is on the way. Your location and audio have been sent.");
+        setStatus("Emergency Alert Active");
+      } else {
+        setStatus("Environment looks safe");
+        setTimeout(() => setStatus('You are safe'), 3000);
+      }
+
+    } catch (err) {
+      console.log("Audio analysis failed", err);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -29,21 +142,16 @@ export function MapScreen() {
       .then((scores) => {
         if (!isMounted) return;
         if (!scores.length) {
-          setRiskSummary('No risk scores yet.');
+          setRiskSummary('Safety score: Unknown');
           return;
         }
         const avgRisk = scores.reduce((sum, item) => sum + item.risk_level, 0) / scores.length;
-        setRiskSummary(`Average risk score: ${avgRisk.toFixed(2)}`);
+        setRiskSummary(`Safety Score: ${(10 - avgRisk).toFixed(1)}/10`);
       })
       .catch((error) => {
-        if (isMounted) {
-          setRiskSummary(`API not connected: ${error.message}`);
-        }
+        if (isMounted) setRiskSummary(`Offline Mode`);
       });
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   useEffect(() => {
@@ -54,7 +162,7 @@ export function MapScreen() {
       if (!isActive) return;
       const { latitude, longitude } = position.coords;
       setCurrentLocation({ latitude, longitude });
-      setLocationStatus(`Live: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+      setLocationStatus(`You are at: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
       webViewRef.current?.postMessage(
         JSON.stringify({ type: 'location', latitude, longitude })
       );
@@ -63,59 +171,36 @@ export function MapScreen() {
     const startWatching = async () => {
       const hasPermission = await requestLocationPermission();
       if (!hasPermission) {
-        setLocationStatus('Location permission denied.');
+        setLocationStatus('Location permission unavailable');
         return;
       }
-
       watchId = Geolocation.watchPosition(
         updateLocation,
-        (error) => {
-          if (!isActive) return;
-          setLocationStatus(`Location error: ${error.message}`);
-        },
-        {
-          enableHighAccuracy: true,
-          distanceFilter: 5,
-          interval: 2000,
-          fastestInterval: 1000,
-          showsBackgroundLocationIndicator: true,
-        }
+        (error) => setLocationStatus(`GPS Error: ${error.message}`),
+        { enableHighAccuracy: true, distanceFilter: 5, interval: 2000, fastestInterval: 1000 }
       );
     };
 
     startWatching();
-
     return () => {
       isActive = false;
-      if (watchId !== null) {
-        Geolocation.clearWatch(watchId);
-      }
+      if (watchId !== null) Geolocation.clearWatch(watchId);
     };
   }, []);
-
-  const emergencyPayload = useMemo(() => {
-    const latitude = currentLocation?.latitude ?? initialRegion.latitude;
-    const longitude = currentLocation?.longitude ?? initialRegion.longitude;
-
-    return {
-      timestamp: new Date().toISOString(),
-      latitude,
-      longitude,
-      accelerometer_data: { magnitude: 2.2 },
-      audio_data: { scream_probability: 0.4 },
-    };
-  }, [currentLocation]);
 
   const handleEmergency = async () => {
     try {
       setSending(true);
-      setStatus('Sending emergency alert...');
-      const response = await detectEmergency(emergencyPayload);
-      setStatus(`Emergency: ${response.is_emergency ? 'YES' : 'NO'} • Risk ${response.fused_risk_score.toFixed(2)}`);
-      Alert.alert('Emergency Triggered', response.message);
+      setStatus('Sending SOS...');
+      const response = await SafetyService.checkMotion({
+        accelerometer: { x: 0, y: 0, z: 0 },
+        gyroscope: { x: 0, y: 0, z: 0 }
+      });
+      if (response) {
+        await startAudioAnalysis();
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      setStatus(`Failed to send: ${message}`);
+      setStatus(`Connection failed`);
     } finally {
       setSending(false);
     }
@@ -125,31 +210,27 @@ export function MapScreen() {
     <html>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <link
-          rel="stylesheet"
-          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-          crossorigin=""
-        />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <style>
-          html, body, #map { height: 100%; margin: 0; padding: 0; }
-          .leaflet-control-attribution { font-size: 10px; }
+          html, body, #map { height: 100%; margin: 0; padding: 0; background: #FAFAFA; }
+          .leaflet-control-attribution { display: none; }
         </style>
       </head>
       <body>
         <div id="map"></div>
-        <script
-          src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-          crossorigin=""
-        ></script>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <script>
-          const map = L.map('map').setView([${initialRegion.latitude}, ${initialRegion.longitude}], 13);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors'
-          }).addTo(map);
-          const liveMarker = L.marker([${initialRegion.latitude}, ${initialRegion.longitude}]).addTo(map);
+          const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${initialRegion.latitude}, ${initialRegion.longitude}], 13);
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+          
+          const icon = L.divIcon({
+            className: 'custom-pin',
+            html: '<div style="background-color: #4ECDC4; width: 16px; height: 16px; border: 3px solid white; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.2);"></div>',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+          });
+          
+          const liveMarker = L.marker([${initialRegion.latitude}, ${initialRegion.longitude}], {icon: icon}).addTo(map);
           let hasCentered = false;
 
           const updateLocation = (lat, lng) => {
@@ -168,9 +249,7 @@ export function MapScreen() {
               if (data?.type === 'location') {
                 updateLocation(data.latitude, data.longitude);
               }
-            } catch (err) {
-              // Ignore malformed payloads
-            }
+            } catch (err) {}
           };
 
           document.addEventListener('message', handleMessage);
@@ -181,77 +260,48 @@ export function MapScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.mapWrapper}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+
+      {/* Map Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Home</Text>
+        <View style={styles.statusPill}>
+          <View style={[styles.statusDot, status.includes('Alert') ? styles.dotRed : styles.dotGreen]} />
+          <Text style={styles.statusText}>{status}</Text>
+        </View>
+      </View>
+
+      <View style={styles.mapContainer}>
         <WebView
           ref={webViewRef}
           originWhitelist={['*']}
           source={{ html: mapHtml }}
           style={styles.map}
-          onLoadEnd={() => {
-            if (!currentLocation) return;
-            webViewRef.current?.postMessage(
-              JSON.stringify({
-                type: 'location',
-                latitude: currentLocation.latitude,
-                longitude: currentLocation.longitude,
-              })
-            );
-          }}
         />
       </View>
 
-      <View style={styles.panel}>
-        <SectionCard title="Map Status" subtitle={status}>
-          <Text style={styles.bodyText}>{locationStatus}</Text>
-          <Text style={styles.bodyText}>Tap SOS if you feel unsafe. The app sends a detection request.</Text>
-          <View style={styles.riskRow}>
-            {riskSummary ? (
-              <Text style={styles.riskText}>{riskSummary}</Text>
-            ) : (
-              <ActivityIndicator size="small" color={colors.accent} />
-            )}
-          </View>
+      {/* Bottom Panel */}
+      <View style={styles.bottomSheet}>
+        <View style={styles.handle} />
+        <SectionCard title="Your Safety Status" subtitle={locationStatus} style={styles.card}>
+          <Text style={styles.riskText}>{riskSummary || 'Checking safety score...'}</Text>
         </SectionCard>
 
         <PrimaryButton
-          label={sending ? 'Sending...' : 'Trigger SOS'}
+          label={sending ? 'Sending Alert...' : 'SOS Emergency'}
           onPress={handleEmergency}
           disabled={sending}
           style={styles.sosButton}
         />
-
-        <Text style={styles.noteText}>
-          For real devices over USB, run adb reverse tcp:8000 tcp:8000 and keep the API at http://127.0.0.1:8000.
-        </Text>
       </View>
     </View>
   );
 }
 
 async function requestLocationPermission() {
-  if (Platform.OS === 'ios') {
-    const authStatus = await Geolocation.requestAuthorization('always');
-    return authStatus === 'granted';
-  }
-
-  const foregroundResult = await PermissionsAndroid.requestMultiple([
-    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-    PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-  ]);
-
-  const hasForeground =
-    foregroundResult[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED ||
-    foregroundResult[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
-
-  if (!hasForeground) {
-    return false;
-  }
-
-  if (Platform.Version >= 29) {
-    await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION);
-  }
-
-  return true;
+  if (Platform.OS === 'ios') return true;
+  const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+  return granted === PermissionsAndroid.RESULTS.GRANTED;
 }
 
 const styles = StyleSheet.create({
@@ -259,39 +309,74 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  mapWrapper: {
-    flex: 1.1,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+  header: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.background,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerTitle: {
+    ...typography.header,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F0F0',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  dotGreen: { backgroundColor: colors.success },
+  dotRed: { backgroundColor: colors.primary },
+  statusText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  mapContainer: {
+    flex: 1,
+    marginHorizontal: spacing.md,
+    borderRadius: 24,
     overflow: 'hidden',
-    marginBottom: spacing.sm,
+    ...shadows.soft,
   },
   map: {
     flex: 1,
+    backgroundColor: '#FAFAFA',
+  },
+  bottomSheet: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xl,
     backgroundColor: colors.background,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
   },
-  panel: {
-    flex: 1,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg,
-    gap: spacing.md,
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: spacing.lg,
   },
-  bodyText: {
-    color: colors.text,
-    ...typography.body,
-  },
-  riskRow: {
-    marginTop: spacing.sm,
+  card: {
+    marginBottom: spacing.lg,
   },
   riskText: {
-    color: colors.success,
-    ...typography.subtitle,
+    ...typography.title,
+    color: colors.secondary,
   },
   sosButton: {
-    paddingVertical: spacing.md,
-  },
-  noteText: {
-    color: colors.muted,
-    ...typography.body,
+    backgroundColor: colors.primary,
+    ...shadows.medium,
   },
 });
