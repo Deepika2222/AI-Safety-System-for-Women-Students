@@ -1,4 +1,4 @@
-package com.ai_safety_system
+package com.anonymous.ai_safety_system
 
 import android.app.Application
 import com.facebook.react.PackageList

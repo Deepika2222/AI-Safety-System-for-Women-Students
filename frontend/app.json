@@ -1,4 +1,7 @@
 {
   "name": "AI_Safety_System",
-  "displayName": "AI_Safety_System"
+  "displayName": "AI_Safety_System",
+  "android": {
+    "package": "com.anonymous.ai_safety_system"
+  }
 }

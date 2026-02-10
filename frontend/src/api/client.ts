@@ -32,9 +32,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), 5000); // 5s timeout
+  const id = setTimeout(() => controller.abort(), 15000); // Increased timeout to 15s
 
   try {
+    console.log(`[API] Requesting: ${options.method || 'GET'} ${url}`);
     const response = await fetch(url, {
       method: options.method ?? 'GET',
       headers,
@@ -48,13 +49,18 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     if (!response.ok) {
       const message = typeof payload === 'string'
         ? payload
-        : payload?.error || payload?.detail || 'Request failed';
+        : payload?.error || payload?.detail || `Request failed with status ${response.status}`;
+      console.error(`[API Error] ${url}: ${message}`);
       throw new Error(message);
     }
 
     return payload as T;
-  } catch (error) {
+  } catch (error: any) {
     clearTimeout(id);
-    throw error;
+    console.error(`[Network Error] ${url}:`, error);
+    const errorMsg = error.message === 'Aborted'
+      ? `Request timeout: ${url} took too long to respond`
+      : `Network error: ${error.message}. Check if server is running at ${API_BASE_URL}`;
+    throw new Error(errorMsg);
   }
 }

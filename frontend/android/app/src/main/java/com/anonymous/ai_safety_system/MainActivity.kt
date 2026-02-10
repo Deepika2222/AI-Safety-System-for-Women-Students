@@ -1,4 +1,4 @@
-package com.ai_safety_system
+package com.anonymous.ai_safety_system
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

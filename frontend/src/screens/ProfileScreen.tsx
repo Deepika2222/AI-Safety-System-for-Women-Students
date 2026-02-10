@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View, Alert } from 'react-native';
 import { fetchEmergencyContacts } from '../api/safety';
 import { SectionCard } from '../components/SectionCard';
 import { colors, spacing, typography } from '../theme-soft';
@@ -28,6 +28,8 @@ export function ProfileScreen() {
       .catch((error) => {
         if (isMounted) {
           setStatus(`Offline`);
+          console.error("Profile Contact Fetch Error:", error);
+          Alert.alert("Sync Error", `Could not load contacts.\n${error.message}`);
         }
       });
     return () => { isMounted = false; };

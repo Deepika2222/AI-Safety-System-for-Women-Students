@@ -113,7 +113,7 @@ export function MapScreen() {
       };
       AudioRecord.init(options);
       AudioRecord.start();
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(() => resolve(true), 3000));
       const audioFile = await AudioRecord.stop();
       const mfcc = await AudioUtils.extractMFCC(audioFile);
 
@@ -149,7 +149,10 @@ export function MapScreen() {
         setRiskSummary(`Safety Score: ${(10 - avgRisk).toFixed(1)}/10`);
       })
       .catch((error) => {
-        if (isMounted) setRiskSummary(`Offline Mode`);
+        if (isMounted) {
+          setRiskSummary(`Offline Mode`);
+          Alert.alert("Connection Error", `Could not fetch safety scores. \n${error.message}`);
+        }
       });
     return () => { isMounted = false; };
   }, []);
@@ -199,8 +202,10 @@ export function MapScreen() {
       if (response) {
         await startAudioAnalysis();
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Emergency Alert Failed:", error);
       setStatus(`Connection failed`);
+      Alert.alert("SOS Failed", `Could not send emergency alert.\n${error.message}`);
     } finally {
       setSending(false);
     }

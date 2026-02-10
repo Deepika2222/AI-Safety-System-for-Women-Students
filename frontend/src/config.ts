@@ -1,10 +1,19 @@
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
-const ANDROID_EMULATOR_HOST = '127.0.0.1'; // Use with adb reverse tcp:8000 tcp:8000
-const IOS_SIMULATOR_HOST = '127.0.0.1';
+const DEV_SERVER_HOST = (() => {
+	const scriptURL = NativeModules.SourceCode?.scriptURL as string | undefined;
+	if (!scriptURL) {
+		return null;
+	}
+	const match = scriptURL.match(/https?:\/\/([^:/]+)/);
+	return match ? match[1] : null;
+})();
+
+const ANDROID_DEVICE_HOST = DEV_SERVER_HOST || '10.18.123.84'; // Fallback to PC LAN IP
+const IOS_SIMULATOR_HOST = DEV_SERVER_HOST || '127.0.0.1';
 
 const apiHost = Platform.select({
-	android: ANDROID_EMULATOR_HOST,
+	android: ANDROID_DEVICE_HOST,
 	ios: IOS_SIMULATOR_HOST,
 	default: IOS_SIMULATOR_HOST,
 });
