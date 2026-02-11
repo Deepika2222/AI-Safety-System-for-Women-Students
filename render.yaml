@@ -8,7 +8,7 @@ services:
     name: ai-safety-system
     env: python
     buildCommand: "./build.sh"
-    startCommand: "gunicorn ai_safety_system.wsgi:application"
+    startCommand: "gunicorn ai_safety_system.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
