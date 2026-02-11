@@ -67,12 +67,28 @@ TEMPLATES = [
 WSGI_APPLICATION = 'ai_safety_system.wsgi.application'
 
 # Database
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Prefer PostgreSQL when DB_NAME is provided in the environment,
+# otherwise fall back to a local SQLite database for easier setup.
+DB_NAME = config('DB_NAME', default=None)
+
+if DB_NAME:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': DB_NAME,
+            'USER': config('DB_USER', default='postgres'),
+            'PASSWORD': config('DB_PASSWORD', default='postgres'),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -132,6 +148,11 @@ CORS_ALLOWED_ORIGINS = config(
     default='http://localhost:3000,http://localhost:8080',
     cast=lambda v: [s.strip() for s in v.split(',')]
 )
+
+# In development, allow all origins to make it easier to call the API
+# from mobile devices and different hosts (Metro bundler, LAN IP, etc).
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
 
 # ML Model configurations
 ML_MODELS_DIR = BASE_DIR / 'ml_models'
