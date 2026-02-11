@@ -3,18 +3,71 @@ Service layer for routing app
 Contains business logic for route prediction and risk scoring
 """
 import time
-from typing import Dict, List, Tuple, Optional
-from datetime import time as dt_time
+from typing import Dict, List, Tuple, Optional, Any
+from datetime import time as dt_time, datetime
 import numpy as np
+import pandas as pd
+import networkx as nx
+import osmnx as ox
+import joblib
+import os
+from django.conf import settings
 from django.contrib.auth.models import User
 
 from .models import Location, RiskScore, Route, RouteSegment
 
+# Global cache for heavy resources
+_GRAPH = None
+_MODEL = None
+_EDGES_DF = None # Pre-calculated edge DataFrame for faster prediction
+
+def get_graph():
+    global _GRAPH, _EDGES_DF
+    if _GRAPH is None:
+        place = "Chicago, Illinois, USA"
+        print(f"Loading OSM graph for {place}...")
+        try:
+            # Using cache=True to leverage osmnx caching
+            # In production, this should load from a local file
+            _GRAPH = ox.graph_from_place(place, network_type="drive")
+            
+            # Pre-calculate edge DataFrame for performance
+            edges_data = []
+            for u, v, k, data in _GRAPH.edges(keys=True, data=True):
+                lat = _GRAPH.nodes[u]['y']
+                lon = _GRAPH.nodes[u]['x']
+                edges_data.append({
+                    'u': u, 'v': v, 'k': k,
+                    'Latitude': lat,
+                    'Longitude': lon,
+                    'crime_enc': 1, # Dummy value
+                    'loc_enc': 1,   # Dummy value
+                    'Arrest': 0,    # Dummy value
+                    'Domestic': 0   # Dummy value
+                })
+            _EDGES_DF = pd.DataFrame(edges_data)
+            print("Graph loaded and edges indexed.")
+        except Exception as e:
+            print(f"Error loading graph: {e}")
+            raise e
+    return _GRAPH, _EDGES_DF
+
+def get_model():
+    global _MODEL
+    if _MODEL is None:
+        model_path = os.path.join(settings.BASE_DIR, "ml_engine/training/models/risk_model.pkl")
+        print(f"Loading risk model from {model_path}...")
+        try:
+            _MODEL = joblib.load(model_path)
+            print("Model loaded.")
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            raise e
+    return _MODEL
 
 class RiskScoringService:
     """
     Service for calculating ML-based location risk scores
-    Implements risk assessment using multiple factors
     """
     
     def calculate_location_risk(
@@ -24,48 +77,46 @@ class RiskScoringService:
         day_of_week: Optional[int] = None
     ) -> float:
         """
-        Calculate risk score for a location using ML model
-        
-        Args:
-            location: Location object
-            time_of_day: Time of day for risk calculation
-            day_of_week: Day of week (0=Monday, 6=Sunday)
-            
-        Returns:
-            Risk score between 0.0 and 1.0
+        Calculate risk score for a single location using ML model
         """
-        # Placeholder for ML-based risk scoring logic
-        # In production, this would call a trained ML model
+        model = get_model()
         
-        # Get existing risk scores for this location
-        existing_scores = RiskScore.objects.filter(
-            location=location,
-            time_of_day=time_of_day,
-            day_of_week=day_of_week
-        ).first()
+        if time_of_day is None:
+            now = datetime.now()
+            hour = now.hour
+        else:
+            hour = time_of_day.hour
+            
+        if day_of_week is None:
+            day_of_week = datetime.now().weekday()
+            
+        # Create input features
+        features = pd.DataFrame([{
+            'Latitude': location.latitude,
+            'Longitude': location.longitude,
+            'hour': hour,
+            'day': day_of_week,
+            'crime_enc': 1,
+            'loc_enc': 1,
+            'Arrest': 0,
+            'Domestic': 0
+        }])
         
-        if existing_scores:
-            return existing_scores.risk_level
-        
-        # Default risk calculation (placeholder)
-        base_risk = 0.3
-        return base_risk
-    
+        try:
+            risk = model.predict(features)[0]
+            return float(risk)
+        except Exception as e:
+            print(f"Error calculating point risk: {e}")
+            return 0.5  # Fallback
+
     def recalculate_route_risk(self, route: Route) -> Route:
         """
         Recalculate overall risk score for a route
-        
-        Args:
-            route: Route object
-            
-        Returns:
-            Updated Route object
         """
         segments = route.segments.all()
         if not segments:
             return route
         
-        # Calculate weighted average risk based on segment distances
         total_distance = sum(seg.segment_distance for seg in segments)
         weighted_risk = sum(
             seg.segment_risk_score * seg.segment_distance
@@ -80,79 +131,136 @@ class RiskScoringService:
 class DijkstraRoutingService:
     """
     Service implementing modified Dijkstra algorithm for safe route finding
-    Considers both distance and risk scores
     """
-    
-    def __init__(self, risk_weight: float = 0.5):
-        """
-        Initialize routing service
-        
-        Args:
-            risk_weight: Weight for risk score in path calculation (0.0 to 1.0)
-        """
-        self.risk_weight = risk_weight
-    
-    def calculate_edge_weight(
-        self,
-        distance: float,
-        risk_score: float
-    ) -> float:
-        """
-        Calculate edge weight combining distance and risk
-        
-        Args:
-            distance: Physical distance in km
-            risk_score: Risk score (0.0 to 1.0)
-            
-        Returns:
-            Combined weight for graph traversal
-        """
-        # Normalize distance (assuming max distance of 50km)
-        normalized_distance = min(distance / 50.0, 1.0)
-        
-        # Combined weight: balance between distance and risk
-        weight = (
-            (1 - self.risk_weight) * normalized_distance +
-            self.risk_weight * risk_score
-        )
-        return weight
     
     def find_safe_route(
         self,
-        origin: Location,
-        destination: Location,
-        route_type: str = 'safest'
-    ) -> List[Location]:
+        origin_lat: float,
+        origin_lng: float,
+        dest_lat: float,
+        dest_lng: float,
+        route_type: str = 'safest',
+        time_of_day: Optional[dt_time] = None,
+        day_of_week: Optional[int] = None
+    ) -> Tuple[List[Dict], float]:
         """
-        Find safe route using modified Dijkstra algorithm
+        Find safe route using OSMnx graph and NetworkX
+        Returns: Tuple(List of node data dicts, Total Risk Score)
+        """
+        G, edges_df = get_graph()
+        model = get_model()
         
-        Args:
-            origin: Starting location
-            destination: Destination location
-            route_type: Type of route ('safest', 'fastest', 'balanced')
+        # 1. Update edge weights based on time
+        if time_of_day is None:
+            now = datetime.now()
+            hour = now.hour
+        else:
+            hour = time_of_day.hour
             
-        Returns:
-            List of Location objects representing the route
-        """
-        # Adjust risk weight based on route type
-        if route_type == 'safest':
-            self.risk_weight = 0.8
-        elif route_type == 'fastest':
-            self.risk_weight = 0.2
-        else:  # balanced
-            self.risk_weight = 0.5
+        if day_of_week is None:
+            day_of_week = datetime.now().weekday()
+            
+        # Fast vectorized prediction
+        # Copy df to avoid modifying global cache state permanently if we were thread-safe (basic implementation here)
+        # Note: In a real concurrent Django app, we'd need thread-local copies or locking.
+        # For prototype, we modify the shared features DF then predict.
         
-        # Placeholder for actual Dijkstra implementation
-        # In production, this would use a graph structure and implement
-        # the modified Dijkstra algorithm with risk-aware edge weights
+        features_df = edges_df.copy()
+        features_df['hour'] = hour
+        features_df['day'] = day_of_week
         
-        # For now, return simple path
-        return [origin, destination]
+        feature_cols = ['Latitude', 'Longitude', 'hour', 'day', 'crime_enc', 'loc_enc', 'Arrest', 'Domestic']
+        
+        try:
+            risk_scores = model.predict(features_df[feature_cols])
+        except Exception as e:
+            print(f"Prediction error: {e}")
+            raise e
+            
+        # Update graph weights
+        # We need to map risk scores back to edges.
+        # edges_df has 'u', 'v', 'k' which match G edges
+        
+        # Create a dictionary for fast lookup or direct assignment
+        # Using a distinct weight name to avoid overwriting 'length'
+        weight_name = 'risk_weight'
+        
+        # Iterate and update
+        # This loop is still Python-heavy but faster than individual predictions
+        for idx, risk in enumerate(risk_scores):
+            u = edges_df.iloc[idx]['u']
+            v = edges_df.iloc[idx]['v']
+            k = edges_df.iloc[idx]['k']
+            # risk is 0-1 (approx).
+            # risk_weight: higher risk -> higher cost.
+            # length: physical distance.
+            
+            # Combined weight formula
+            length = G[u][v][k].get('length', 10.0) # Default 10m if missing
+            
+            if route_type == 'safest':
+                # Heavily penalize risk.
+                # Cost = length * (1 + risk * 10)
+                # If risk is 0.1, cost = length * 2. If risk is 0.9, cost = length * 10.
+                cost = length * (1.0 + float(risk) * 20.0)
+            elif route_type == 'fastest':
+                # Pure length, ignore risk (or minimal risk)
+                cost = length
+            else:
+                 # Balanced
+                cost = length * (1.0 + float(risk) * 5.0)
+                
+            G[u][v][k][weight_name] = cost
+            G[u][v][k]['risk_score'] = float(risk) # Store raw risk for later
+            
+        # 2. Find nearest nodes
+        orig_node = ox.nearest_nodes(G, origin_lng, origin_lat)
+        dest_node = ox.nearest_nodes(G, dest_lng, dest_lat)
+        
+        # 3. Shortest path
+        try:
+            route_nodes = nx.shortest_path(G, orig_node, dest_node, weight=weight_name)
+        except nx.NetworkXNoPath:
+            return [], 0.0
+            
+        # 4. Extract path data
+        path_data = []
+        total_risk = 0.0
+        count = 0
+        
+        for i, node_id in enumerate(route_nodes):
+            node_obj = G.nodes[node_id]
+            lat = node_obj['y']
+            lng = node_obj['x']
+            
+            step_risk = 0.0
+            # If not last node, get edge data to next node
+            if i < len(route_nodes) - 1:
+                next_node = route_nodes[i+1]
+                # accessing edge data
+                # MultiDiGraph, so there might be multiple edges (keys). Use key 0 or min weight.
+                edge_data = G.get_edge_data(node_id, next_node)
+                if edge_data:
+                    # simplistic: take first key
+                    first_key = list(edge_data.keys())[0]
+                    step_risk = edge_data[first_key].get('risk_score', 0.0)
+            
+            path_data.append({
+                'latitude': lat,
+                'longitude': lng,
+                'risk_score': step_risk
+            })
+            total_risk += step_risk
+            count += 1
+            
+        avg_risk = total_risk / count if count > 0 else 0.0
+        
+        return path_data, avg_risk
 
 
 class RoutePredictionService:
     """
-    Main service for route prediction combining risk scoring and routing
+    Main service for route prediction
     """
     
     def __init__(self):
@@ -171,146 +279,119 @@ class RoutePredictionService:
         day_of_week: Optional[int] = None
     ) -> Dict:
         """
-        Predict safe route from origin to destination
-        
-        Args:
-            origin_lat: Origin latitude
-            origin_lng: Origin longitude
-            destination_lat: Destination latitude
-            destination_lng: Destination longitude
-            route_type: Type of route to calculate
-            user: User requesting the route
-            time_of_day: Time for risk calculation
-            day_of_week: Day of week for risk calculation
-            
-        Returns:
-            Dictionary containing route and metadata
+        Orchestrate safe route prediction
         """
         start_time = time.time()
         
-        # Get or create locations
-        origin, _ = Location.objects.get_or_create(
+        # Find safe route using real OSM/NetworkX logic
+        path_data, avg_risk = self.routing_service.find_safe_route(
+            origin_lat, origin_lng, destination_lat, destination_lng,
+            route_type, time_of_day, day_of_week
+        )
+        
+        if not path_data:
+            raise Exception("No path found between origin and destination")
+            
+        # Create DB objects
+        
+        # 1. Locations
+        # Optimization: Don't save every intermediate node as a generic 'Location' 
+        # unless necessary, or bulk create. 
+        # For now, we will save origin/dest and just store segments.
+        # Given existing schema, we probably need Locations for segments.
+        
+        origin_loc, _ = Location.objects.get_or_create(
             latitude=origin_lat,
             longitude=origin_lng,
-            defaults={'location_type': 'waypoint'}
+            defaults={'location_type': 'origin'}
         )
         
-        destination, _ = Location.objects.get_or_create(
+        destination_loc, _ = Location.objects.get_or_create(
             latitude=destination_lat,
             longitude=destination_lng,
-            defaults={'location_type': 'waypoint'}
+            defaults={'location_type': 'destination'}
         )
         
-        # Find safe route using modified Dijkstra
-        path = self.routing_service.find_safe_route(
-            origin, destination, route_type
-        )
+        # Calculate totals
+        total_distance = 0.0 # Calculate from path_data if needed
+        # We can sum distance from path_data if we stored it
+        # For prototype, approximate
         
-        # Calculate route metrics
-        total_distance = self._calculate_total_distance(path)
-        estimated_duration = self._estimate_duration(total_distance)
+        estimated_duration = 0.0 # update later
         
-        # Calculate risk scores for path
-        overall_risk = self._calculate_path_risk(
-            path, time_of_day, day_of_week
-        )
-        
-        # Create route object
         route = Route.objects.create(
             user=user,
-            origin=origin,
-            destination=destination,
-            total_distance=total_distance,
-            estimated_duration=estimated_duration,
-            overall_risk_score=overall_risk,
+            origin=origin_loc,
+            destination=destination_loc,
+            total_distance=0.0, # Placeholder, updated below
+            estimated_duration=0.0,
+            overall_risk_score=avg_risk,
             route_type=route_type
         )
         
-        # Create route segments
-        self._create_route_segments(route, path, time_of_day, day_of_week)
+        # Create segments and locations for the path
+        # Bulk create locations?
+        # Iterate path
         
-        computation_time = time.time() - start_time
+        saved_locations = []
+        # Reuse origin loc for first point? path_data[0] is nearest node, not exact request origin.
+        # But close enough for routing display.
         
-        return {
-            'route': route,
-            'alternatives': [],  # Placeholder for alternative routes
-            'computation_time': computation_time,
-            'message': 'Route calculated successfully'
-        }
-    
-    def _calculate_total_distance(self, path: List[Location]) -> float:
-        """Calculate total distance for a path"""
-        # Placeholder: Simple Euclidean distance
-        if len(path) < 2:
-            return 0.0
+        total_dist_calc = 0.0
         
-        total = 0.0
-        for i in range(len(path) - 1):
-            lat1, lng1 = path[i].latitude, path[i].longitude
-            lat2, lng2 = path[i + 1].latitude, path[i + 1].longitude
-            # Approximate distance (should use haversine in production)
-            distance = np.sqrt((lat2 - lat1)**2 + (lng2 - lng1)**2) * 111  # ~111 km per degree
-            total += distance
-        
-        return total
-    
-    def _estimate_duration(self, distance: float) -> float:
-        """Estimate duration based on distance (minutes)"""
-        # Assume average speed of 30 km/h
-        return (distance / 30.0) * 60.0
-    
-    def _calculate_path_risk(
-        self,
-        path: List[Location],
-        time_of_day: Optional[dt_time],
-        day_of_week: Optional[int]
-    ) -> float:
-        """Calculate overall risk for a path"""
-        if not path:
-            return 0.5
-        
-        risks = [
-            self.risk_service.calculate_location_risk(
-                loc, time_of_day, day_of_week
-            )
-            for loc in path
-        ]
-        
-        return np.mean(risks)
-    
-    def _create_route_segments(
-        self,
-        route: Route,
-        path: List[Location],
-        time_of_day: Optional[dt_time],
-        day_of_week: Optional[int]
-    ) -> None:
-        """Create route segments from path"""
-        for i in range(len(path) - 1):
-            start_loc = path[i]
-            end_loc = path[i + 1]
+        for i in range(len(path_data)):
+            p = path_data[i]
+            # Check if loc exists (expensive loop!)
+            # For speed, let's create new ones or check cache.
+            # Use get_or_create is safe but slow for 100 nodes.
+            # Implementation detail: Only store key waypoints or just store segments?
+            # Assuming we need them for the frontend to draw path.
             
-            # Calculate segment metrics
-            lat1, lng1 = start_loc.latitude, start_loc.longitude
-            lat2, lng2 = end_loc.latitude, end_loc.longitude
-            segment_distance = np.sqrt((lat2 - lat1)**2 + (lng2 - lng1)**2) * 111
-            segment_duration = (segment_distance / 30.0) * 60.0
+            # Optimization: Just use a serializer that sends the coordinates without DB ids for segments?
+            # But RouteResponseSerializer likely expects Route object with Segments.
             
-            # Calculate segment risk
-            start_risk = self.risk_service.calculate_location_risk(
-                start_loc, time_of_day, day_of_week
+            loc, _ = Location.objects.get_or_create(
+                latitude=p['latitude'],
+                longitude=p['longitude'],
+                defaults={'location_type': 'waypoint'}
             )
-            end_risk = self.risk_service.calculate_location_risk(
-                end_loc, time_of_day, day_of_week
-            )
-            segment_risk = (start_risk + end_risk) / 2.0
+            saved_locations.append(loc)
+            
+        # Create Segments
+        for i in range(len(saved_locations) - 1):
+            start_loc = saved_locations[i]
+            end_loc = saved_locations[i+1]
+            
+            # dist
+            # simple euclidian approximation for speed or geodesic
+            d_lat = end_loc.latitude - start_loc.latitude
+            d_lng = end_loc.longitude - start_loc.longitude
+            dist_km = np.sqrt(d_lat**2 + d_lng**2) * 111.0
+            total_dist_calc += dist_km
+            
+            dur_mins = (dist_km / 30.0) * 60.0 # 30km/h avg
+            
+            risk = path_data[i]['risk_score'] # Risk of edge starting at i
             
             RouteSegment.objects.create(
                 route=route,
                 start_location=start_loc,
                 end_location=end_loc,
                 sequence_order=i,
-                segment_distance=segment_distance,
-                segment_duration=segment_duration,
-                segment_risk_score=segment_risk
+                segment_distance=dist_km,
+                segment_duration=dur_mins,
+                segment_risk_score=risk
             )
+            
+        route.total_distance = total_dist_calc
+        route.estimated_duration = (total_dist_calc / 30.0) * 60.0
+        route.save()
+        
+        computation_time = time.time() - start_time
+        
+        return {
+            'route': route,
+            'alternatives': [],
+            'computation_time': computation_time,
+            'message': 'Route calculation successful'
+        }

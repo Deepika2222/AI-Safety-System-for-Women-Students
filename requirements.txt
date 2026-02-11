@@ -14,6 +14,7 @@ scipy>=1.11.0
 # Geospatial and routing
 geopy>=2.3.0
 networkx>=3.1
+osmnx>=1.9.0
 
 # Audio processing (for audio verification)
 librosa>=0.10.0
