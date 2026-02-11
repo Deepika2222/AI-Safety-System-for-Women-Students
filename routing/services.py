@@ -27,6 +27,9 @@ def get_graph():
         place = "Chicago, Illinois, USA"
         print(f"Loading OSM graph for {place}...")
         try:
+            # Configure osmnx with a custom User-Agent to avoid blocking
+            ox.settings.user_agent = "Protego-AI-Safety-System/1.0 (vaibhav@example.com)"
+            
             # Using cache=True to leverage osmnx caching
             # In production, this should load from a local file
             _GRAPH = ox.graph_from_place(place, network_type="drive")

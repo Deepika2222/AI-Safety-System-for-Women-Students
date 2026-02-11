@@ -106,7 +106,8 @@ export async function geocodePlaceName(query: string): Promise<GeocodedLocation>
     headers: {
       Accept: 'application/json',
       // Nominatim requires a descriptive User-Agent
-      'User-Agent': 'ai-safety-system-mobile/1.0',
+      'User-Agent': 'Protego-AI-Safety-System/1.0 (vaibhav@example.com)', // Replace with real email if possible, or generic project contact
+      'Referer': 'https://github.com/Deepika2222/AI-Safety-System-for-Women-Students',
     },
   });
 

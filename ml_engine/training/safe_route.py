@@ -31,6 +31,8 @@ except Exception as e:
 place = "Chicago, Illinois, USA"
 print(f"Downloading graph for {place} (this may take a moment)...")
 try:
+    # Configure osmnx with a custom User-Agent to avoid blocking
+    ox.settings.user_agent = "Protego-AI-Safety-System/1.0 (vaibhav@example.com)"
     G = ox.graph_from_place(place, network_type="drive")
 except Exception as e:
     print(f"Error downloading graph from OSM: {e}")
