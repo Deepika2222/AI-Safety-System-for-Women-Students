@@ -1,5 +1,5 @@
 
-import client from './client';
+import { request } from './client';
 
 export interface Location {
   id?: number;
@@ -7,6 +7,19 @@ export interface Location {
   longitude: number;
   name?: string;
   address?: string;
+}
+
+export interface RiskScore {
+  id: number;
+  location: number;
+  risk_level: number;
+  time_of_day?: string;
+  day_of_week?: number;
+  crime_rate?: number;
+  lighting_score?: number;
+  crowd_density?: number;
+  incident_history?: number;
+  calculated_at?: string;
 }
 
 export interface RouteSegment {
@@ -49,11 +62,69 @@ export interface RouteRequest {
 }
 
 export const predictSafeRoute = async (data: RouteRequest): Promise<RoutePredictionResponse> => {
-  const response = await client.post('/api/routing/routes/predict_safe_route/', data);
-  return response.data;
+  return request<RoutePredictionResponse>('/api/routing/routes/predict_safe_route/', {
+    method: 'POST',
+    body: data,
+  });
 };
 
 export const getRouteHistory = async (): Promise<Route[]> => {
-  const response = await client.get('/api/routing/routes/user_history/');
-  return response.data;
+  return request<Route[]>('/api/routing/routes/user_history/');
 };
+
+export const fetchRiskScores = async (): Promise<RiskScore[]> => {
+  return request<RiskScore[]>('/api/routing/risk-scores/');
+};
+
+export interface GeocodedLocation {
+  latitude: number;
+  longitude: number;
+  displayName: string;
+}
+
+interface NominatimResult {
+  lat: string;
+  lon: string;
+  display_name: string;
+}
+
+/**
+ * Simple geocoding helper using OpenStreetMap Nominatim.
+ * Converts a free‑text place name into latitude/longitude.
+ */
+export async function geocodePlaceName(query: string): Promise<GeocodedLocation> {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    throw new Error('Destination cannot be empty.');
+  }
+
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+    trimmed,
+  )}&limit=1`;
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      // Nominatim requires a descriptive User-Agent
+      'User-Agent': 'ai-safety-system-mobile/1.0',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Geocoding failed with status ${response.status}`);
+  }
+
+  const data: NominatimResult[] = await response.json();
+
+  if (!data.length) {
+    throw new Error('No results found for that place.');
+  }
+
+  const { lat, lon, display_name } = data[0];
+
+  return {
+    latitude: parseFloat(lat),
+    longitude: parseFloat(lon),
+    displayName: display_name,
+  };
+}

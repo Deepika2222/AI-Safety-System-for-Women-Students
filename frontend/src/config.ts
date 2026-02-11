@@ -9,7 +9,7 @@ const DEV_SERVER_HOST = (() => {
 	return match ? match[1] : null;
 })();
 
-const ANDROID_DEVICE_HOST = DEV_SERVER_HOST || '10.18.123.84'; // Fallback to PC LAN IP
+const ANDROID_DEVICE_HOST = DEV_SERVER_HOST || '192.168.1.10'; // Fallback to PC LAN IP
 const IOS_SIMULATOR_HOST = DEV_SERVER_HOST || '127.0.0.1';
 
 const apiHost = Platform.select({

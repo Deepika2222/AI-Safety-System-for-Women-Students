@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, PermissionsAndroid, Platform, StyleSheet, Text, View, StatusBar, Animated, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Alert, PermissionsAndroid, Platform, StyleSheet, Text, View, StatusBar, Animated, TouchableOpacity, TextInput } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Geolocation, { GeoPosition } from 'react-native-geolocation-service';
 import { accelerometer, setUpdateIntervalForType, SensorTypes } from 'react-native-sensors';
 import AudioRecord from 'react-native-audio-record';
 import { SafetyService } from '../api/SafetyService';
 import { AudioUtils } from '../utils/AudioUtils';
-import { fetchRiskScores } from '../api/routing';
+import { fetchRiskScores, predictSafeRoute, geocodePlaceName, RoutePredictionResponse } from '../api/routing';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SectionCard } from '../components/SectionCard';
 import { colors, spacing, typography, shadows } from '../theme-soft';
@@ -21,6 +21,9 @@ export function MapScreen() {
   const [status, setStatus] = useState('You are safe');
   const [locationStatus, setLocationStatus] = useState('Updating location...');
   const [riskSummary, setRiskSummary] = useState<string | null>(null);
+  const [destinationQuery, setDestinationQuery] = useState('');
+  const [routeSummary, setRouteSummary] = useState<string | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const webViewRef = useRef<WebView>(null);
 
@@ -38,6 +41,94 @@ export function MapScreen() {
     };
     initAudio();
   }, []);
+
+  const handleFindSafeRoute = async () => {
+    if (!currentLocation) {
+      Alert.alert('Location unavailable', 'Waiting for your GPS location. Please try again in a moment.');
+      return;
+    }
+
+    const query = destinationQuery.trim();
+    if (!query) {
+      Alert.alert('Destination required', 'Please enter a place name or address.');
+      return;
+    }
+
+    try {
+      setRouteLoading(true);
+      setStatus('Finding safest route...');
+
+      // 1. Geocode the destination text into coordinates
+      const geo = await geocodePlaceName(query);
+
+      // 2. Build route request using current time/day
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+
+      // Convert JS day (0=Sunday) to backend convention (0=Monday)
+      const jsDay = now.getDay(); // 0-6, Sunday=0
+      const dayOfWeek = (jsDay + 6) % 7; // 0-6, Monday=0
+
+      const response = await predictSafeRoute({
+        origin_lat: currentLocation.latitude,
+        origin_lng: currentLocation.longitude,
+        destination_lat: geo.latitude,
+        destination_lng: geo.longitude,
+        route_type: 'safest',
+        time_of_day: `${hours}:${minutes}:00`,
+        day_of_week: dayOfWeek,
+      });
+
+      const { route } = response;
+
+      // 3. Prepare a simple polyline from origin + segment end locations
+      const points: { latitude: number; longitude: number }[] = [];
+      if (route.origin) {
+        points.push({
+          latitude: route.origin.latitude,
+          longitude: route.origin.longitude,
+        });
+      }
+      if (Array.isArray(route.segments)) {
+        route.segments.forEach((segment) => {
+          if (segment.end_location) {
+            points.push({
+              latitude: segment.end_location.latitude,
+              longitude: segment.end_location.longitude,
+            });
+          }
+        });
+      }
+
+      if (points.length) {
+        webViewRef.current?.postMessage(
+          JSON.stringify({
+            type: 'route',
+            points,
+          }),
+        );
+      }
+
+      // 4. Update UI summary
+      const distanceKm = route.total_distance ?? 0;
+      const durationMins = route.estimated_duration ?? 0;
+      const risk = route.overall_risk_score ?? 0;
+
+      setRouteSummary(
+        `Safest route: ${distanceKm.toFixed(1)} km · ${durationMins.toFixed(
+          0,
+        )} mins · Risk score ${risk.toFixed(2)}`,
+      );
+      setStatus('Safest route ready');
+    } catch (error: any) {
+      console.error('Safe route error', error);
+      Alert.alert('Route Error', error.message || 'Could not compute a safe route. Please try again.');
+      setStatus('You are safe');
+    } finally {
+      setRouteLoading(false);
+    }
+  };
 
   // Motion Monitoring Logic
   useEffect(() => {
@@ -237,6 +328,7 @@ export function MapScreen() {
           
           const liveMarker = L.marker([${initialRegion.latitude}, ${initialRegion.longitude}], {icon: icon}).addTo(map);
           let hasCentered = false;
+          let routeLayer = null;
 
           const updateLocation = (lat, lng) => {
             liveMarker.setLatLng([lat, lng]);
@@ -248,11 +340,27 @@ export function MapScreen() {
             }
           };
 
+          const drawRoute = (points) => {
+            if (!Array.isArray(points) || points.length === 0) return;
+            const latlngs = points.map(p => [p.latitude || p.lat, p.longitude || p.lng]);
+            if (routeLayer) {
+              map.removeLayer(routeLayer);
+            }
+            routeLayer = L.polyline(latlngs, {
+              color: '#FF6B6B',
+              weight: 5,
+              opacity: 0.9
+            }).addTo(map);
+            map.fitBounds(routeLayer.getBounds(), { padding: [40, 40] });
+          };
+
           const handleMessage = (event) => {
             try {
               const data = JSON.parse(event.data);
               if (data?.type === 'location') {
                 updateLocation(data.latitude, data.longitude);
+              } else if (data?.type === 'route') {
+                drawRoute(data.points || data.coordinates || data.route);
               }
             } catch (err) {}
           };
@@ -290,6 +398,29 @@ export function MapScreen() {
         <View style={styles.handle} />
         <SectionCard title="Your Safety Status" subtitle={locationStatus} style={styles.card}>
           <Text style={styles.riskText}>{riskSummary || 'Checking safety score...'}</Text>
+        </SectionCard>
+
+        <SectionCard
+          title="Safe Navigation"
+          subtitle="Enter a destination to see the safest route"
+          style={styles.card}
+        >
+          <TextInput
+            style={styles.destinationInput}
+            placeholder="Enter place name or address"
+            placeholderTextColor={colors.textSecondary}
+            value={destinationQuery}
+            onChangeText={setDestinationQuery}
+          />
+          <PrimaryButton
+            label={routeLoading ? 'Finding Route...' : 'Find Safest Route'}
+            onPress={handleFindSafeRoute}
+            disabled={routeLoading || !destinationQuery.trim()}
+            style={styles.routeButton}
+          />
+          {routeSummary ? (
+            <Text style={styles.routeSummary}>{routeSummary}</Text>
+          ) : null}
         </SectionCard>
 
         <PrimaryButton
@@ -383,5 +514,25 @@ const styles = StyleSheet.create({
   sosButton: {
     backgroundColor: colors.primary,
     ...shadows.medium,
+  },
+  destinationInput: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+    backgroundColor: colors.surface,
+    ...typography.body,
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  routeButton: {
+    marginTop: spacing.xs,
+    backgroundColor: colors.secondary,
+    ...shadows.medium,
+  },
+  routeSummary: {
+    marginTop: spacing.sm,
+    ...typography.caption,
   },
 });
