@@ -1,0 +1,22 @@
+databases:
+  - name: ai_safety_db
+    databaseName: ai_safety_system
+    user: ai_safety_user
+
+services:
+  - type: web
+    name: ai-safety-system
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn ai_safety_system.wsgi:application"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai_safety_db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: WEB_CONCURRENCY
+        value: 4
+      - key: DEBUG
+        value: "False"
