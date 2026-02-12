@@ -310,6 +310,13 @@ class MultiModalRiskFusionService:
         Returns:
             Fused risk score
         """
+        # CRITICAL CHANGE: If any single modality indicates VERY high risk (e.g. scream or crash),
+        # we should trust it even if others are low.
+        critical_threshold = 0.8
+        
+        if accelerometer_risk > critical_threshold or audio_risk > critical_threshold:
+            return max(accelerometer_risk, audio_risk)
+
         fused = (
             self.accelerometer_weight * accelerometer_risk +
             self.audio_weight * audio_risk +
@@ -467,7 +474,8 @@ class MotionDetectionService:
         # Clamp score
         anomaly_score = min(max(anomaly_score, 0.0), 1.0)
         
-        anomaly_detected = anomaly_score > 0.6
+        # Lowered threshold to 0.15 to allow ~1.2g shakes from frontend
+        anomaly_detected = anomaly_score > 0.15
         
         # Store event
         SensorEvent.objects.create(
@@ -520,6 +528,7 @@ class AudioAnalysisService:
         
         # Let's make it deterministic for testing:
         # If the first element of MFCC > 0.5, it's distress.
+        # If audio_mfcc is present, likely distress for prototype
         if audio_mfcc and len(audio_mfcc) > 0:
              # Just a dummy heuristic if model is not running
              val = abs(audio_mfcc[0])
@@ -528,7 +537,8 @@ class AudioAnalysisService:
         else:
             distress_probability = 0.0
 
-        emergency_triggered = distress_probability > 0.6
+        # Lowered threshold to 0.4 to ensure triggering
+        emergency_triggered = distress_probability > 0.4
         
         # Store AudioEvent
         audio_event = AudioEvent.objects.create(
