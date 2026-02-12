@@ -130,61 +130,10 @@ export function MapScreen() {
     }
   };
 
-  // Motion Monitoring Logic
-  useEffect(() => {
-    let subscription: any;
-    setUpdateIntervalForType(SensorTypes.accelerometer, 200);
+  // Motion Monitoring Logic moved to BackgroundSafetyService
+  // useEffect(() => { ... }, [sending]);
 
-    const monitorMotion = async () => {
-      console.log("Starting accelerometer monitoring...");
-      try {
-        subscription = accelerometer.subscribe(({ x, y, z }) => {
-          const magnitude = Math.sqrt(x * x + y * y + z * z);
-          // Lower threshold to 1.5g (approx 14.7 m/s^2) for easier testing
-          // Earth gravity is ~9.8, so 15 is a firm shake.
-          if (magnitude > 15 && !sending) {
-            console.log(`Motion detected! Magnitude: ${magnitude.toFixed(2)}`);
-            handleMotionCheck({ x, y, z });
-          }
-        });
-      } catch (error) {
-        console.error("Accelerometer subscription failed:", error);
-      }
-    };
-
-    monitorMotion();
-    return () => {
-      if (subscription) {
-        console.log("Stopping accelerometer monitoring...");
-        subscription.unsubscribe();
-      }
-    };
-  }, [sending]);
-
-  const handleMotionCheck = async (accel: { x: number, y: number, z: number }) => {
-    if (sending) return;
-    setSending(true);
-    setStatus('Checking potential fall...');
-
-    try {
-      const response = await SafetyService.checkMotion({
-        accelerometer: accel,
-        gyroscope: { x: 0, y: 0, z: 0 }
-      });
-
-      if (response.anomaly_detected) {
-        setStatus('Analyzing audio environment...');
-        await startAudioAnalysis();
-      } else {
-        setStatus('Movement cleared');
-        setTimeout(() => setStatus('You are safe'), 2000);
-      }
-    } catch (err) {
-      console.log("Motion check failed", err);
-    } finally {
-      setSending(false);
-    }
-  };
+  // handleMotionCheck moved to BackgroundSafetyService
 
   const startAudioAnalysis = async () => {
     try {
@@ -282,25 +231,7 @@ export function MapScreen() {
     };
   }, []);
 
-  const handleEmergency = async () => {
-    try {
-      setSending(true);
-      setStatus('Sending SOS...');
-      const response = await SafetyService.checkMotion({
-        accelerometer: { x: 0, y: 0, z: 0 },
-        gyroscope: { x: 0, y: 0, z: 0 }
-      });
-      if (response) {
-        await startAudioAnalysis();
-      }
-    } catch (error: any) {
-      console.error("Emergency Alert Failed:", error);
-      setStatus(`Connection failed`);
-      Alert.alert("SOS Failed", `Could not send emergency alert.\n${error.message}`);
-    } finally {
-      setSending(false);
-    }
-  };
+  // handleEmergency moved to SosScreen
 
   const mapHtml = `<!doctype html>
     <html>
@@ -423,12 +354,6 @@ export function MapScreen() {
           ) : null}
         </SectionCard>
 
-        <PrimaryButton
-          label={sending ? 'Sending Alert...' : 'SOS Emergency'}
-          onPress={handleEmergency}
-          disabled={sending}
-          style={styles.sosButton}
-        />
       </View>
     </View>
   );

@@ -74,4 +74,16 @@ export const typography = {
         fontWeight: '500' as const,
         color: colors.textSecondary,
     },
+    subhead: {
+        fontSize: 14,
+        fontWeight: '600' as const,
+        color: colors.text,
+        letterSpacing: 0.5,
+    },
+    button: {
+        fontSize: 16,
+        fontWeight: '600' as const,
+        color: colors.surface,
+        letterSpacing: 1,
+    }
 };

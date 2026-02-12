@@ -1,23 +1,31 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { SafeAreaView, StatusBar, StyleSheet, Text, Pressable, View } from 'react-native';
+import { BackgroundSafetyRunner } from './src/services/BackgroundSafetyService';
+import { HomeScreen } from './src/screens/HomeScreen';
 import { MapScreen } from './src/screens/MapScreen';
+import { SosScreen } from './src/screens/SosScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { colors, spacing, typography, shadows } from './src/theme-soft';
 
-type TabKey = 'map' | 'profile' | 'settings';
+type TabKey = 'home' | 'map' | 'sos' | 'profile' | 'settings';
 
 function App() {
-  const [tab, setTab] = useState<TabKey>('map');
+  const [tab, setTab] = useState<TabKey>('home');
+
+  useEffect(() => {
+    BackgroundSafetyRunner.start();
+  }, []);
 
   const screen = useMemo(() => {
-    if (tab === 'profile') {
-      return <ProfileScreen />;
+    switch (tab) {
+      case 'home': return <HomeScreen />;
+      case 'map': return <MapScreen />;
+      case 'sos': return <SosScreen />;
+      case 'profile': return <ProfileScreen />;
+      case 'settings': return <SettingsScreen />;
+      default: return <HomeScreen />;
     }
-    if (tab === 'settings') {
-      return <SettingsScreen />;
-    }
-    return <MapScreen />;
   }, [tab]);
 
   return (
@@ -25,7 +33,17 @@ function App() {
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <View style={styles.content}>{screen}</View>
       <View style={styles.tabBar}>
-        <TabButton label="Home" active={tab === 'map'} onPress={() => setTab('map')} />
+        <TabButton label="Home" active={tab === 'home'} onPress={() => setTab('home')} />
+        <TabButton label="Map" active={tab === 'map'} onPress={() => setTab('map')} />
+
+        {/* Special SOS Tab Button */}
+        <Pressable
+          style={[styles.sosTab, tab === 'sos' && styles.sosTabActive]}
+          onPress={() => setTab('sos')}
+        >
+          <Text style={styles.sosTabLabel}>SOS</Text>
+        </Pressable>
+
         <TabButton label="Profile" active={tab === 'profile'} onPress={() => setTab('profile')} />
         <TabButton label="Settings" active={tab === 'settings'} onPress={() => setTab('settings')} />
       </View>
@@ -65,9 +83,10 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     paddingBottom: spacing.lg,
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 30,
@@ -76,7 +95,7 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.sm,
     borderRadius: 20,
     alignItems: 'center',
   },
@@ -87,13 +106,33 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   tabLabel: {
-    color: '#BDBDBD',
     ...typography.caption,
+    color: '#BDBDBD', // Override caption color
     fontWeight: '600',
+    fontSize: 10,
   },
   tabLabelActive: {
-    color: colors.primary,
+    color: colors.secondary,
   },
+  sosTab: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -20, // Pop out effect
+    ...shadows.medium,
+  },
+  sosTabActive: {
+    transform: [{ scale: 1.1 }],
+    backgroundColor: '#D32F2F',
+  },
+  sosTabLabel: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+  }
 });
 
 export default App;
