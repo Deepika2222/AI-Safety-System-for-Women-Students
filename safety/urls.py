@@ -6,7 +6,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     SensorDataViewSet, EmergencyDetectionViewSet,
     EmergencyContactViewSet, AlertViewSet,
-    CheckMotionView, AnalyzeAudioView
+    CheckMotionView, AnalyzeAudioView, RegisterView
 )
 
 router = DefaultRouter()
@@ -18,5 +18,6 @@ router.register(r'alerts', AlertViewSet, basename='alert')
 urlpatterns = [
     path('check_motion/', CheckMotionView.as_view(), name='check-motion'),
     path('analyze_audio/', AnalyzeAudioView.as_view(), name='analyze-audio'),
+    path('register/', RegisterView.as_view(), name='register'),
     path('', include(router.urls)),
 ]

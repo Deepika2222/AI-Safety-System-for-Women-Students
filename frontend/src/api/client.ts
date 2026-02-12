@@ -57,9 +57,26 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     const payload = await parseJson(response);
 
     if (!response.ok) {
-      const message = typeof payload === 'string'
-        ? payload
-        : payload?.error || payload?.detail || `Request failed with status ${response.status}`;
+      let message = `Request failed with status ${response.status}`;
+      if (payload) {
+        if (typeof payload === 'string') {
+          message = payload;
+        } else if (payload.non_field_errors && Array.isArray(payload.non_field_errors)) {
+          message = payload.non_field_errors.join(' ');
+        } else if (payload.error) {
+          message = payload.error;
+        } else if (payload.detail) {
+          message = payload.detail;
+        } else {
+          // Try to find any first error message from dict
+          const keys = Object.keys(payload);
+          if (keys.length > 0 && typeof payload[keys[0]] === 'string') {
+            message = `${keys[0]}: ${payload[keys[0]]}`;
+          } else if (keys.length > 0 && Array.isArray(payload[keys[0]])) {
+            message = `${keys[0]}: ${payload[keys[0]].join(' ')}`;
+          }
+        }
+      }
       console.error(`[API Error] ${url}: ${message}`);
       throw new Error(message);
     }

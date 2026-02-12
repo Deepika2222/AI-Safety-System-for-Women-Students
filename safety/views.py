@@ -14,7 +14,7 @@ from .serializers import (
     SensorDataSerializer, SensorDataInputSerializer,
     EmergencyDetectionSerializer, AlertSerializer,
     EmergencyContactSerializer, EmergencyDetectionRequestSerializer,
-    EmergencyDetectionResponseSerializer
+    EmergencyDetectionResponseSerializer, UserRegistrationSerializer
 )
 from .services import (
     AccelerometerProcessingService, AudioVerificationService,
@@ -205,4 +205,14 @@ class AnalyzeAudioView(APIView):
                 return Response(response_serializer.data, status=status.HTTP_200_OK)
             except Exception as e:
                 return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class RegisterView(APIView):
+    permission_classes = [] # Allow anonymous registration
+
+    def post(self, request):
+        serializer = UserRegistrationSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

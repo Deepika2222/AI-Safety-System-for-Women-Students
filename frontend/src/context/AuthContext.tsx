@@ -77,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             // Placeholder for registration logic
             // If your backend doesn't have registration, this will 404.
-            await request('/api/register/', {
+            await request('/api/safety/register/', {
                 method: 'POST',
                 body: { username, password, email }
             });
