@@ -20,7 +20,12 @@ async function parseJson(response: Response) {
   }
 }
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// import AsyncStorage from '@react-native-async-storage/async-storage';
+const AsyncStorage = {
+  getItem: async (key: string) => null,
+  setItem: async (key: string, value: string) => { },
+  removeItem: async (key: string) => { }
+};
 
 // ... imports
 

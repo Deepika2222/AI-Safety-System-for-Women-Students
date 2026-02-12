@@ -1,5 +1,10 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// import AsyncStorage from '@react-native-async-storage/async-storage';
+const AsyncStorage = {
+    getItem: async (key: string) => null,
+    setItem: async (key: string, value: string) => { },
+    removeItem: async (key: string) => { }
+};
 import { request } from '../api/client';
 
 type AuthContextType = {
