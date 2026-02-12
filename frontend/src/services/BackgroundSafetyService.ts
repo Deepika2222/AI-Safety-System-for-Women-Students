@@ -55,65 +55,57 @@ const veryIntensiveTask = async (taskDataArguments?: any) => {
 };
 
 const handleEmergencyCheck = async (accel: { x: number, y: number, z: number }) => {
+    console.log('[Background] Motion detected. Starting emergency verification...');
+
     try {
-        // Simple check first to avoid false positives
-        // In real app, we might want to check if it sustains for a few frames
-
-        console.log('[Background] Checking cloud for anomaly...');
-        const response = await SafetyService.checkMotion({
-            accelerometer: accel,
-            gyroscope: { x: 0, y: 0, z: 0 }
-        });
-
-        if (response.anomaly_detected) {
-            console.log('[Background] Anomaly confirmed. Recording audio...');
-            await startAudioAnalysis();
-        }
-    } catch (error) {
-        console.error('[Background] Error in emergency check', error);
-    }
-};
-
-const startAudioAnalysis = async () => {
-    try {
-        // Initialize Audio (should be safe to re-init)
-        // Note: Audio recording in background on Android might require specific permissions or foreground service type 'microphone'
-        // For now, we assume standard permission is enough for foreground service.
-        const options = {
+        // 1. Record Audio
+        console.log('[Background] Recording audio for verification...');
+        const audioOptions = {
             sampleRate: 16000,
             channels: 1,
             bitsPerSample: 16,
             audioSource: 6,
-            wavFile: 'background_test.wav'
+            wavFile: 'background_emergency.wav'
         };
 
-        AudioRecord.init(options);
+        // Ensure init
+        AudioRecord.init(audioOptions);
         AudioRecord.start();
         await sleep(3000); // Record for 3 seconds
         const audioFile = await AudioRecord.stop();
-
         const mfcc = await AudioUtils.extractMFCC(audioFile);
 
-        // We don't have location easily in background without another listener.
-        // Send 0,0 or last known if we stored it globally.
-        // For SOS, sending the alert is priority.
+        // 2. Prepare Data
+        // Ideally fetch location here if permissions allow.
+        // For now, sending 0,0 or last known.
+        const requestData = {
+            accelerometer_data: accel,
+            audio_data: { mfcc: mfcc },
+            latitude: 0,
+            longitude: 0,
+            timestamp: new Date().toISOString()
+        };
 
-        const response = await SafetyService.analyzeAudio({
-            audio_mfcc: mfcc,
-            location: { lat: 0, lon: 0 }
-        });
+        // 3. Call Fusion Service
+        console.log('[Background] Sending data to Safety Fusion Engine...');
+        const response = await SafetyService.detectEmergency(requestData);
 
-        if (response.emergency_triggered) {
-            console.log('[Background] EMERGENCY TRIGGERED! Sending SMS/Alert...');
-            // In a real app, triggering Native Module for SMS or Push Notification would happen here
-            // Local Notification to user
+        // 4. Handle Result
+        if (response.is_emergency) {
+            console.log('[Background] EMERGENCY CONFIRMED! Risk Score:', response.fused_risk_score);
+
             await BackgroundService.updateNotification({
                 taskTitle: 'SOS ACTIVATED',
-                taskDesc: 'Emergency alert sent to contacts.',
+                taskDesc: `Emergency sent! Risk: ${(response.fused_risk_score * 100).toFixed(0)}%`,
             });
+
+            // In a real app, trigger native SMS/Call handling here.
+        } else {
+            console.log('[Background] False positive. Risk Score:', response.fused_risk_score);
         }
-    } catch (err) {
-        console.error("[Background] Audio analysis failed", err);
+
+    } catch (error) {
+        console.error('[Background] Error in emergency check workflow:', error);
     }
 };
 

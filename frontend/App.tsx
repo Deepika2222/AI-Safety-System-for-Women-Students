@@ -27,6 +27,7 @@ function AppContent() {
             PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
             PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
             'android.permission.POST_NOTIFICATIONS',
+            'android.permission.ACTIVITY_RECOGNITION',
           ]);
 
           if (
