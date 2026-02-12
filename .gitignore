@@ -34,6 +34,7 @@ venv/
 env/
 ENV/
 .venv
+myenv/
 
 # IDE
 .vscode/
@@ -55,8 +56,10 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# ML Models
+# ML Models (generic)
 *.pkl
 *.h5
 *.joblib
 ml_models/
+# Exception: track the trained risk model needed for deployment
+!ml_engine/training/models/risk_model.pkl

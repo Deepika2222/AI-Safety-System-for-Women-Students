@@ -32,11 +32,18 @@ export interface RouteSegment {
   segment_risk_score: number;
 }
 
+export interface PathPoint {
+  latitude: number;
+  longitude: number;
+  risk_score: number;
+}
+
 export interface Route {
   id: number;
   origin: Location;
   destination: Location;
   waypoints: Location[];
+  path_data?: PathPoint[];
   segments: RouteSegment[];
   total_distance: number;
   estimated_duration: number;

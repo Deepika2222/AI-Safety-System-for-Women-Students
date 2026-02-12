@@ -42,7 +42,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), 15000); // Increased timeout to 15s
+  const id = setTimeout(() => controller.abort(), 60000); // 60s for Render cold-starts + heavy route computation
 
   try {
     console.log(`[API] Requesting: ${options.method || 'GET'} ${url}`);

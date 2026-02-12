@@ -78,12 +78,14 @@ TEMPLATES = [
 WSGI_APPLICATION = 'ai_safety_system.wsgi.application'
 
 # Database
-# Prefer PostgreSQL when DB_NAME is provided in the environment,
-# otherwise fall back to a local SQLite database for easier setup.
-# Database
+# Use DATABASE_URL in production (Render sets this automatically).
+# Fall back to local SQLite for development.
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL')
+        default=os.environ.get(
+            'DATABASE_URL',
+            f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
+        )
     )
 }
 
@@ -112,7 +114,16 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Django 4.2+ uses STORAGES instead of STATICFILES_STORAGE
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
 # Media files
 MEDIA_URL = 'media/'
@@ -132,7 +143,10 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 100,
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication', # Added for mobile auth
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ] if not DEBUG else [
+        'rest_framework.authentication.TokenAuthentication',
         'ai_safety_system.authentication.DefaultUserAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
