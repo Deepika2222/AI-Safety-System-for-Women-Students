@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { SafeAreaView, StatusBar, StyleSheet, Text, Pressable, View } from 'react-native';
+import { SafeAreaView, StatusBar, StyleSheet, Text, Pressable, View, Platform, PermissionsAndroid } from 'react-native';
 import { BackgroundSafetyRunner } from './src/services/BackgroundSafetyService';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { MapScreen } from './src/screens/MapScreen';
@@ -13,8 +13,38 @@ type TabKey = 'home' | 'map' | 'sos' | 'profile' | 'settings';
 function App() {
   const [tab, setTab] = useState<TabKey>('home');
 
+
+
   useEffect(() => {
-    BackgroundSafetyRunner.start();
+    const init = async () => {
+      if (Platform.OS === 'android') {
+        try {
+          const granted = await PermissionsAndroid.requestMultiple([
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+            // Notification permission is needed for Android 13+
+            'android.permission.POST_NOTIFICATIONS',
+          ]);
+
+          if (
+            granted[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED &&
+            granted[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED
+          ) {
+            console.log('Permissions granted, starting service...');
+            await BackgroundSafetyRunner.start();
+          } else {
+            console.log('Permissions denied');
+          }
+        } catch (err) {
+          console.warn(err);
+        }
+      } else {
+        // iOS permissions are handled differently (usually via Info.plist and runtime request)
+        BackgroundSafetyRunner.start();
+      }
+    };
+    init();
   }, []);
 
   const screen = useMemo(() => {
