@@ -20,6 +20,10 @@ async function parseJson(response: Response) {
   }
 }
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// ... imports
+
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const url = `${API_BASE_URL}${path}`;
   const headers: Record<string, string> = {
@@ -27,8 +31,9 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     ...options.headers,
   };
 
-  if (API_TOKEN) {
-    headers.Authorization = `Bearer ${API_TOKEN}`;
+  const token = await AsyncStorage.getItem('auth_token');
+  if (token) {
+    headers.Authorization = `Token ${token}`;
   }
 
   const controller = new AbortController();

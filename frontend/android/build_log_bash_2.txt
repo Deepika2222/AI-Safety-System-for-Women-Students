@@ -1,0 +1,73 @@
+> Task :gradle-plugin:settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:shared:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:shared:compileJava NO-SOURCE
+> Task :gradle-plugin:shared:processResources NO-SOURCE
+> Task :gradle-plugin:shared:classes UP-TO-DATE
+> Task :gradle-plugin:shared:jar UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:react-native-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:react-native-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:jar UP-TO-DATE
+WARNING: The specified Android SDK Build Tools version (34.0.0) is ignored, as it is below the minimum supported version (35.0.0) for Android Gradle Plugin 8.12.0.
+Android SDK Build Tools 35.0.0 will be used.
+To suppress this warning, remove "buildToolsVersion '34.0.0'" from your build.gradle file, as each version of the Android Gradle Plugin now has a default version of the build tools.
+> Task :clean
+> Task :app:externalNativeBuildCleanDebug
+> Task :app:externalNativeBuildCleanDebugOptimized
+
+> Task :app:externalNativeBuildCleanRelease
+Clean react_codegen_safeareacontext-armeabi-v7a, react_codegen_RNCWebViewSpec-armeabi-v7a, appmodules-armeabi-v7a
+Clean react_codegen_safeareacontext-arm64-v8a, react_codegen_RNCWebViewSpec-arm64-v8a, appmodules-arm64-v8a
+Clean react_codegen_safeareacontext-x86, react_codegen_RNCWebViewSpec-x86, appmodules-x86
+Clean react_codegen_safeareacontext-x86_64, react_codegen_RNCWebViewSpec-x86_64, appmodules-x86_64
+
+> Task :app:clean
+> Task :react-native-audio-record:clean UP-TO-DATE
+> Task :react-native-background-actions:clean UP-TO-DATE
+> Task :react-native-fs:clean UP-TO-DATE
+> Task :react-native-geolocation-service:clean UP-TO-DATE
+> Task :react-native-safe-area-context:clean
+> Task :react-native-sensors:clean UP-TO-DATE
+> Task :react-native-webview:clean
+> Task :app:generateAutolinkingNewArchitectureFiles FAILED
+
+[Incubating] Problems report is available at: file:///D:/Projects/Protego/frontend/android/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+A problem was found with the configuration of task ':app:generateAutolinkingNewArchitectureFiles' (type 'GenerateAutolinkingNewArchitecturesFileTask').
+  - In plugin 'com.facebook.react' type 'com.facebook.react.tasks.GenerateAutolinkingNewArchitecturesFileTask' property 'autolinkInputFile' specifies file 'D:\Projects\Protego\frontend\android\build\generated\autolinking\autolinking.json' which doesn't exist.
+    
+    Reason: An input file was expected to be present but it doesn't exist.
+    
+    Possible solutions:
+      1. Make sure the file exists before the task is called.
+      2. Make sure that the task which produces the file is declared as an input.
+    
+    For more information, please refer to https://docs.gradle.org/8.13/userguide/validation_problems.html#input_file_does_not_exist in the Gradle documentation.
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 19s
+23 actionable tasks: 8 executed, 15 up-to-date

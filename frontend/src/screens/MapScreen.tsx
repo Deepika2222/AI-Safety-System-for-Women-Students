@@ -321,6 +321,17 @@ export function MapScreen() {
           originWhitelist={['*']}
           source={{ html: mapHtml }}
           style={styles.map}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          onError={(syntheticEvent) => {
+            const { nativeEvent } = syntheticEvent;
+            console.warn('WebView error: ', nativeEvent);
+            Alert.alert('Map Error', 'Failed to load map resources. Please check your internet connection.');
+          }}
+          onHttpError={(syntheticEvent) => {
+            const { nativeEvent } = syntheticEvent;
+            console.warn('WebView HTTP error: ', nativeEvent);
+          }}
         />
       </View>
 

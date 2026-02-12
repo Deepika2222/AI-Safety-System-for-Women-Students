@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'routing',
     'safety',
     'ml_engine',
+    'rest_framework.authtoken', # Added for token auth
 ]
 
 MIDDLEWARE = [
@@ -124,6 +125,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 100,
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication', # Added for mobile auth
         'ai_safety_system.authentication.DefaultUserAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],

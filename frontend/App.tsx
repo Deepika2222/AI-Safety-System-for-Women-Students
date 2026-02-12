@@ -1,19 +1,22 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { SafeAreaView, StatusBar, StyleSheet, Text, Pressable, View, Platform, PermissionsAndroid } from 'react-native';
+import { SafeAreaView, StatusBar, StyleSheet, Text, Pressable, View, Platform, PermissionsAndroid, ActivityIndicator } from 'react-native';
 import { BackgroundSafetyRunner } from './src/services/BackgroundSafetyService';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { MapScreen } from './src/screens/MapScreen';
 import { SosScreen } from './src/screens/SosScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { LoginScreen } from './src/screens/LoginScreen';
+import { RegisterScreen } from './src/screens/RegisterScreen';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { colors, spacing, typography, shadows } from './src/theme-soft';
 
 type TabKey = 'home' | 'map' | 'sos' | 'profile' | 'settings';
 
-function App() {
+function AppContent() {
+  const { user, isLoading } = useAuth();
   const [tab, setTab] = useState<TabKey>('home');
-
-
+  const [isRegistering, setIsRegistering] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -23,7 +26,6 @@ function App() {
             PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
             PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
             PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-            // Notification permission is needed for Android 13+
             'android.permission.POST_NOTIFICATIONS',
           ]);
 
@@ -40,7 +42,6 @@ function App() {
           console.warn(err);
         }
       } else {
-        // iOS permissions are handled differently (usually via Info.plist and runtime request)
         BackgroundSafetyRunner.start();
       }
     };
@@ -58,6 +59,20 @@ function App() {
     }
   }, [tab]);
 
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (!user) {
+    return isRegistering
+      ? <RegisterScreen onNavigateLogin={() => setIsRegistering(false)} />
+      : <LoginScreen onNavigateRegister={() => setIsRegistering(true)} />;
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
@@ -66,7 +81,6 @@ function App() {
         <TabButton label="Home" active={tab === 'home'} onPress={() => setTab('home')} />
         <TabButton label="Map" active={tab === 'map'} onPress={() => setTab('map')} />
 
-        {/* Special SOS Tab Button */}
         <Pressable
           style={[styles.sosTab, tab === 'sos' && styles.sosTabActive]}
           onPress={() => setTab('sos')}
@@ -78,6 +92,14 @@ function App() {
         <TabButton label="Settings" active={tab === 'settings'} onPress={() => setTab('settings')} />
       </View>
     </SafeAreaView>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
